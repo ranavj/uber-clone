@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL (For Users, Payments - ACID Transactions)
+  postgres:
+    image: postgres:15-alpine
+    container_name: uber_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secretpassword123}
+      POSTGRES_DB: ${POSTGRES_DB:-uber_db}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. MongoDB (For Ride History, Logs - Flexible Data)
+  mongo:
+    image: mongo:6.0
+    container_name: uber_mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+
+  # 3. Redis (For GeoSpatial & Socket.io Adapter - Speed)
+  redis:
+    image: redis:7-alpine
+    container_name: uber_redis
+    restart: always
+    command: redis-server --appendonly yes
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  # 4. Redis Commander (Optional GUI to view Redis Data)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: uber_redis_gui
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - '8081:8081'
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:

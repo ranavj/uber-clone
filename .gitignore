@@ -40,3 +40,16 @@ Thumbs.db
 
 .nx/cache
 .nx/workspace-data
+
+.angular
+
+# ... existing lines ...
+
+# Sensitivity
+.env
+.env.local
+.env.*
+node_modules/
+dist/
+tmp/
+coverage/
