@@ -1,13 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { UiInput, UiButton, UiCardComponent } from '@uber/ui';
 import { Auth } from './auth/auth';
 @Component({
   selector: 'app-login',
-  imports: [CommonModule,ReactiveFormsModule, UiButton, UiInput, UiCardComponent],
+  imports: [CommonModule,ReactiveFormsModule, UiButton, UiInput, UiCardComponent, RouterLink],
   templateUrl: './login.html',
   styleUrl: './login.css',
 })
