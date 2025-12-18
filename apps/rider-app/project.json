@@ -8,11 +8,13 @@
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "options": {
         "outputPath": "dist/apps/rider-app",
         "browser": "apps/rider-app/src/main.ts",
-        "polyfills": ["zone.js"],
+        "polyfills": [],
         "tsConfig": "apps/rider-app/tsconfig.app.json",
         "inlineStyleLanguage": "scss",
         "assets": [
@@ -21,7 +23,9 @@
             "input": "apps/rider-app/public"
           }
         ],
-        "styles": ["apps/rider-app/src/styles.scss"],
+        "styles": [
+          "apps/rider-app/src/styles.scss"
+        ],
         "server": "apps/rider-app/src/main.server.ts",
         "ssr": {
           "entry": "apps/rider-app/src/server.ts"
@@ -47,7 +51,13 @@
         "development": {
           "optimization": false,
           "extractLicenses": false,
-          "sourceMap": true
+          "sourceMap": true,
+          "fileReplacements": [
+            {
+              "replace": "apps/rider-app/src/environments/environment.ts",
+              "with": "apps/rider-app/src/environments/environment.development.ts"
+            }
+          ]
         }
       },
       "defaultConfiguration": "production"
@@ -76,7 +86,9 @@
     },
     "test": {
       "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ],
       "options": {
         "jestConfig": "apps/rider-app/jest.config.cts",
         "tsConfig": "apps/rider-app/tsconfig.spec.json"

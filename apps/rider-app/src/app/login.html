@@ -1,0 +1,59 @@
+<div class="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+  
+  <uber-card 
+    title="Uber Rider" 
+    description="Enter your details to login"
+    class="w-full max-w-md"
+  >
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="mt-8 space-y-6">
+      
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-gray-700">Email</label>
+        <input 
+          uberInput 
+          type="email" 
+          formControlName="email" 
+          placeholder="name@example.com"
+        />
+        <p *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.invalid" class="text-xs text-red-500">
+          Valid email is required
+        </p>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-gray-700">Password</label>
+        <input 
+          uberInput 
+          type="password" 
+          formControlName="password" 
+          placeholder="••••••••"
+        />
+        <p *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.invalid" class="text-xs text-red-500">
+          Min 6 characters required
+        </p>
+      </div>
+
+      <div *ngIf="errorMessage()" class="p-3 rounded-md bg-red-50 text-red-600 text-sm border border-red-200">
+        {{ errorMessage() }}
+      </div>
+
+      <uber-button 
+        class="w-full mt-4" 
+        size="lg" 
+        type="submit" 
+        [disabled]="isLoading()">
+
+        {{ isLoading() ? 'Signing in...' : 'Sign In' }}
+
+      </uber-button>
+
+    </form>
+
+    <div class="mt-6 text-center text-sm text-gray-600">
+      Don't have an account?
+      <a routerLink="/signup" class="font-medium text-black hover:underline cursor-pointer">Sign up</a>
+    </div>
+
+  </uber-card>
+</div>
