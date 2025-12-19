@@ -53,3 +53,5 @@ node_modules/
 dist/
 tmp/
 coverage/
+
+/generated/prisma

@@ -5,7 +5,7 @@ import { tap } from 'rxjs';
 import { isPlatformBrowser } from '@angular/common';
 import { environment } from '../../environments/environment';
 
-// Interface define kar lete hain (Clean Code)
+// ✅ Interfaces (Type Safety ke liye)
 interface User {
   id: string;
   email: string;
@@ -24,28 +24,36 @@ interface AuthResponse {
 export class Auth {
   private http = inject(HttpClient);
   private router = inject(Router);
-  private apiUrl = environment.apiUrl;;
+  
+  // Typo fixed (;; -> ;)
+  private apiUrl = environment.apiUrl; 
 
-  // ✅ 1. State (Signal): User abhi null hai
-  // 'private' rakha taaki koi bahar se directly change na kar sake
+  // Platform ID for SSR check
+  private platformId = inject(PLATFORM_ID);
+
+  // ✅ 1. State (Signal)
   private currentUserSignal = signal<User | null>(null);
 
-  // ✅ 2. Computed Signal: Sirf read karne ke liye public variable
+  // ✅ 2. Read-only Public API
   readonly currentUser = this.currentUserSignal.asReadonly();
   
-  // ✅ 3. Helper Signal: Kya user login hai?
+  // ✅ 3. Helper: Kya user login hai?
   readonly isAuthenticated = computed(() => !!this.currentUserSignal());
 
-  // Platform ID inject karein (Pata karne ke liye ki hum kahan hain)
-  private platformId = inject(PLATFORM_ID);
   constructor() {
-    // App start hote hi check karo ki localStorage mein token hai kya?
-    // (Real app mein hum /profile API hit karke verify karenge, abhi simple rakhte hain)
-    if(isPlatformBrowser(this.platformId)){
-      const token = localStorage.getItem('token');
-      if (token) {
-        // Temporary: Assume user is logged in (Baad mein API se user fetch karenge)
-        // this.currentUserSignal.set({ ...dummyUser }); 
+    // ✅ PERMANENT FIX: App reload hone par User restore karo
+    if (isPlatformBrowser(this.platformId)) {
+      const storedUser = localStorage.getItem('uber_user'); // User object string
+      
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          this.currentUserSignal.set(parsedUser); // Signal restore kiya
+          console.log('🔄 Session Restored:', parsedUser);
+        } catch (e) {
+          console.error('Session Parse Error', e);
+          this.logout(); // Corrupt data ho toh logout kar do
+        }
       }
     }
   }
@@ -53,26 +61,30 @@ export class Auth {
   login(credentials: any) {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login`, credentials).pipe(
       tap((response) => {
-        // Token save karo
-        if(isPlatformBrowser(this.platformId)) {
-          localStorage.setItem('token', response.access_token);
-        }
-        // Signal update karo (UI apne aap update ho jayega)
+        console.log('📦 Login API Response:', response);
+
+        // ✅ Signal update (Sabse pehle)
         this.currentUserSignal.set(response.user);
+
+        // ✅ Browser Storage update (SSR Safe)
+        if (isPlatformBrowser(this.platformId)) {
+          localStorage.setItem('uber_token', response.access_token);
+          // User object bhi save karo taaki refresh par yaad rahe
+          localStorage.setItem('uber_user', JSON.stringify(response.user)); 
+        }
       })
     );
   }
 
   signup(data: any) {
     // Backend API: POST /api/register
-    // Note: Backend register hone par Token nahi deta (sirf User deta hai),
-    // isliye hum token save nahi kar rahe. User ko login karna padega.
     return this.http.post<any>(`${this.apiUrl}/register`, data);
   }
 
   logout() {
-    if(isPlatformBrowser(this.platformId)) {
-      localStorage.removeItem('token');
+    if (isPlatformBrowser(this.platformId)) {
+      localStorage.removeItem('uber_token');
+      localStorage.removeItem('uber_user'); // User bhi clear karo
     }
     this.currentUserSignal.set(null);
     this.router.navigate(['/login']);

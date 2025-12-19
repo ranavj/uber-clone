@@ -1,8 +1,17 @@
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, inject, OnInit, PLATFORM_ID, signal, ViewChild } from '@angular/core';
-import { MapMarkerConfig, UiButton, UiMapComponent } from '@uber/ui';
+import { AfterViewInit, Component, ElementRef, inject, OnInit, OnDestroy, PLATFORM_ID, signal, ViewChild } from '@angular/core';
+import { Router } from '@angular/router';
 
-// 👇 Data Structure define kiya
+// Services
+
+
+// UI Components
+import { MapMarkerConfig, UiButton, UiMapComponent } from '@uber/ui';
+import { RideService } from './services/ride.services';
+import { Auth } from './services/auth';
+import { SocketService } from './services/socket';
+
+// Interfaces
 interface RideOption {
   id: string;
   name: string;
@@ -11,7 +20,6 @@ interface RideOption {
   time: string;
 }
 
-// 👇 Driver Interface
 interface DriverDetails {
   name: string;
   carModel: string;
@@ -20,6 +28,7 @@ interface DriverDetails {
   image: string;
   phone: string;
 }
+
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -27,36 +36,43 @@ interface DriverDetails {
   templateUrl: './home.html',
   styleUrl: './home.css',
 })
-export class Home implements OnInit, AfterViewInit {
+export class Home implements OnInit, AfterViewInit, OnDestroy {
+  // Dependencies
   private platformId = inject(PLATFORM_ID);
-  
+  private rideService = inject(RideService);
+  private authService = inject(Auth);
+  private router = inject(Router);
+  private socketService = inject(SocketService);
+
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
+  // Signals (State Management)
   center = signal<google.maps.LatLngLiteral>({ lat: 28.6139, lng: 77.2090 });
   markers = signal<MapMarkerConfig[]>([]);
   directionsResult = signal<google.maps.DirectionsResult | null>(null);
-  
+
   rideOptions = signal<RideOption[]>([]);
 
+  // Stages: 'select-ride' -> 'searching' -> 'confirmed' (Driver Found)
   bookingStage = signal<'select-ride' | 'searching' | 'confirmed'>('select-ride');
-  
-  assignedDriver = signal<DriverDetails | null>(null);
-  sourceLocation: google.maps.LatLngLiteral | null = null;
-  markerOptions: google.maps.MarkerOptions | undefined;
 
+  assignedDriver = signal<DriverDetails | null>(null);
+
+  // Class Variables
+  sourceLocation: google.maps.LatLngLiteral | null = null;
   carIcon: google.maps.Icon = {
     url: 'https://cdn-icons-png.flaticon.com/512/11104/11104431.png',
     scaledSize: { width: 40, height: 40, equals: () => false } as google.maps.Size,
   };
 
   ngOnInit() {
+    // 1. Browser Check & Location
     if (isPlatformBrowser(this.platformId)) {
-      this.markerOptions = {
-        draggable: false,
-        animation: google.maps.Animation.DROP,
-      };
       this.getCurrentLocation();
     }
+
+    // 2. Socket Connection
+    this.socketService.connect();
   }
 
   ngAfterViewInit() {
@@ -65,86 +81,11 @@ export class Home implements OnInit, AfterViewInit {
     }
   }
 
-  initAutocomplete() {
-    if (!google || !google.maps || !google.maps.places) return;
-    
-    const autocomplete = new google.maps.places.Autocomplete(
-      this.searchInput.nativeElement,
-      { types: ['establishment', 'geocode'], componentRestrictions: { country: 'IN' } }
-    );
-
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      if (place.geometry && place.geometry.location) {
-        const lat = place.geometry.location.lat();
-        const lng = place.geometry.location.lng();
-        const destPos = { lat, lng };
-
-        this.center.set(destPos);
-
-        if (this.sourceLocation) {
-          this.calculateRoute(this.sourceLocation, destPos);
-        } else {
-           this.addMarker(destPos, 'Destination');
-        }
-      }
-    });
+  ngOnDestroy() {
+    this.socketService.disconnect();
   }
 
-  calculateRoute(from: google.maps.LatLngLiteral, to: google.maps.LatLngLiteral) {
-    const directionsService = new google.maps.DirectionsService();
-    directionsService.route(
-      { origin: from, destination: to, travelMode: google.maps.TravelMode.DRIVING },
-      (response, status) => {
-        if (status === google.maps.DirectionsStatus.OK && response) {
-          this.directionsResult.set(response);
-          
-          // 👇 Route aate hi Price calculate karo
-          this.updatePrices(response);
-          
-        } else {
-          console.error('Directions request failed due to ' + status);
-        }
-      }
-    );
-  }
-
-  // 👇 Price Calculation Logic
-  updatePrices(result: google.maps.DirectionsResult) {
-    const leg = result.routes[0].legs[0];
-    if (!leg || !leg.distance || !leg.duration) return;
-
-    // Distance in Kilometers
-    const distanceKm = leg.distance.value / 1000;
-    const durationText = leg.duration.text; // e.g., "15 mins"
-
-    // Simple Math: Base Fare + (Rate * Distance)
-    const options: RideOption[] = [
-      {
-        id: 'moto',
-        name: 'Uber Moto',
-        image: 'https://cdn-icons-png.flaticon.com/512/3721/3721619.png', // Bike Icon
-        price: Math.round(20 + (10 * distanceKm)), // ₹10 per km
-        time: durationText
-      },
-      {
-        id: 'uber_go',
-        name: 'Uber Go',
-        image: 'https://cdn-icons-png.flaticon.com/512/11104/11104431.png', // Car Icon
-        price: Math.round(40 + (15 * distanceKm)), // ₹15 per km
-        time: durationText
-      },
-      {
-        id: 'premier',
-        name: 'Uber Premier',
-        image: 'https://cdn-icons-png.flaticon.com/512/5035/5035162.png', // Luxury Icon
-        price: Math.round(60 + (22 * distanceKm)), // ₹22 per km
-        time: durationText
-      }
-    ];
-
-    this.rideOptions.set(options);
-  }
+  // Map & Location Logic ---
 
   getCurrentLocation() {
     if (isPlatformBrowser(this.platformId) && navigator.geolocation) {
@@ -164,10 +105,19 @@ export class Home implements OnInit, AfterViewInit {
     }
   }
 
+  private addMarker(position: google.maps.LatLngLiteral, title: string) {
+    const newMarker: MapMarkerConfig = {
+      position,
+      title,
+      options: { animation: google.maps.Animation.DROP }
+    };
+    this.markers.update(current => [...current, newMarker]);
+  }
+
   simulateNearbyDrivers(center: google.maps.LatLngLiteral) {
     const dummyCars: MapMarkerConfig[] = [];
     for (let i = 0; i < 4; i++) {
-      const lat = center.lat + (Math.random() - 0.5) * 0.01; 
+      const lat = center.lat + (Math.random() - 0.5) * 0.01;
       const lng = center.lng + (Math.random() - 0.5) * 0.01;
 
       dummyCars.push({
@@ -179,42 +129,143 @@ export class Home implements OnInit, AfterViewInit {
     this.markers.update(curr => [...curr, ...dummyCars]);
   }
 
-  private addMarker(position: google.maps.LatLngLiteral, title: string) {
-    const newMarker: MapMarkerConfig = {
-      position,
-      title,
-      options: { animation: google.maps.Animation.DROP }
-    };
-    this.markers.update(current => [...current, newMarker]);
+  initAutocomplete() {
+    if (!google || !google.maps || !google.maps.places) return;
+
+    const autocomplete = new google.maps.places.Autocomplete(
+      this.searchInput.nativeElement,
+      { types: ['establishment', 'geocode'], componentRestrictions: { country: 'IN' } }
+    );
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (place.geometry && place.geometry.location) {
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        const destPos = { lat, lng };
+
+        this.center.set(destPos);
+
+        if (this.sourceLocation) {
+          this.calculateRoute(this.sourceLocation, destPos);
+        } else {
+          this.addMarker(destPos, 'Destination');
+        }
+      }
+    });
   }
+
+  calculateRoute(from: google.maps.LatLngLiteral, to: google.maps.LatLngLiteral) {
+    const directionsService = new google.maps.DirectionsService();
+    directionsService.route(
+      { origin: from, destination: to, travelMode: google.maps.TravelMode.DRIVING },
+      (response, status) => {
+        if (status === google.maps.DirectionsStatus.OK && response) {
+          this.directionsResult.set(response);
+          this.updatePrices(response);
+        } else {
+          console.error('Directions request failed due to ' + status);
+        }
+      }
+    );
+  }
+
+  updatePrices(result: google.maps.DirectionsResult) {
+    const leg = result.routes[0].legs[0];
+    if (!leg || !leg.distance || !leg.duration) return;
+
+    const distanceKm = leg.distance.value / 1000;
+    const durationText = leg.duration.text;
+
+    const options: RideOption[] = [
+      {
+        id: 'moto',
+        name: 'Uber Moto',
+        image: 'https://cdn-icons-png.flaticon.com/512/3721/3721619.png',
+        price: Math.round(20 + (10 * distanceKm)),
+        time: durationText
+      },
+      {
+        id: 'uber_go',
+        name: 'Uber Go',
+        image: 'https://cdn-icons-png.flaticon.com/512/11104/11104431.png',
+        price: Math.round(40 + (15 * distanceKm)),
+        time: durationText
+      },
+      {
+        id: 'premier',
+        name: 'Uber Premier',
+        image: 'https://cdn-icons-png.flaticon.com/512/5035/5035162.png',
+        price: Math.round(60 + (22 * distanceKm)),
+        time: durationText
+      }
+    ];
+
+    this.rideOptions.set(options);
+  }
+
+  // --- 🚕 Booking Logic (The Real Deal) ---
 
   requestRide(rideId: string) {
     console.log('Requesting ride:', rideId);
-    
-    // 1. Stage change -> Searching
+
+    const user = this.authService.currentUser();
+    if (!user) {
+      alert('Please Login first');
+      this.router.navigate(['/login']);
+      return;
+    }
+
+    // 1. UI Update -> Searching
     this.bookingStage.set('searching');
 
-    // 2. Simulate Network Delay (3 Seconds)
-    setTimeout(() => {
-      this.findDriver();
-    }, 3000);
+    // 2. Prepare Payload
+    const ridePayload = {
+      pickupLat: this.sourceLocation?.lat || 28.6139,
+      pickupLng: this.sourceLocation?.lng || 77.2090,
+      dropLat: this.center().lat, // Destination
+      dropLng: this.center().lng,
+      pickupAddr: "Current Location",
+      dropAddr: "Destination",
+      price: 150, // Should be dynamic based on selection, simplified for now
+      riderId: user.id
+    };
+
+    // 3. API Call
+    this.rideService.requestRide(ridePayload).subscribe({
+      next: (ride) => {
+        console.log('✅ Ride Booked! ID:', ride.id);
+
+        // 4. Listen for Driver (Socket)
+        this.socketService.listen(`ride-status-${ride.id}`, (updatedRide: any) => {
+          console.log('🔔 SOCKET UPDATE:', updatedRide.status);
+
+          if (updatedRide.status === 'ACCEPTED') {
+            this.handleDriverFound(updatedRide);
+          }
+        });
+      },
+      error: (err) => {
+        console.error('Booking Failed', err);
+        alert('Booking Failed!');
+        this.bookingStage.set('select-ride');
+      }
+    });
   }
 
-  // 👇 Naya Function: Driver Assign karo
-  findDriver() {
-    // Fake Driver Data
+  handleDriverFound(updatedRide: any) {
+    // 1. Backend se Driver ID aayi hai, Mock Details for now
     const driver: DriverDetails = {
       name: 'Vikram Singh',
-      carModel: 'Maruti Swift Dzire',
+      carModel: 'Maruti Swift',
       carNumber: 'DL 3C AB 1234',
       rating: 4.8,
-      image: 'https://cdn-icons-png.flaticon.com/512/3048/3048122.png', // Driver Icon
+      image: 'https://cdn-icons-png.flaticon.com/512/3048/3048122.png',
       phone: '+91 9876543210'
     };
 
+    // 2. Update UI
     this.assignedDriver.set(driver);
-    
-    // 3. Stage change -> Confirmed
-    this.bookingStage.set('confirmed');
+    this.bookingStage.set('confirmed'); // ✅ Matches HTML condition
   }
 }
