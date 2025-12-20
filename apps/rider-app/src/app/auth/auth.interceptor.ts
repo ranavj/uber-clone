@@ -4,23 +4,22 @@ import { inject, PLATFORM_ID } from '@angular/core';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const platformId = inject(PLATFORM_ID);
+  
+  // 1. Browser Check
+  if (isPlatformBrowser(platformId)) {
+    // Seedha const use karein, bahar let define karne ki zaroorat nahi
+    const token = localStorage.getItem('uber_token');
 
-  let token = null;
-    
-  if(isPlatformBrowser(platformId)){
-    token = localStorage.getItem('token');
+    // 2. Token Jodo
+    if (token) {
+      const clonedReq = req.clone({
+        setHeaders: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return next(clonedReq);
+    }
   }
 
-  // Agar token hai, toh request clone karo aur header add karo
-  if (token) {
-    const clonedReq = req.clone({
-      setHeaders: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    return next(clonedReq);
-  }
-
-  // Agar token nahi hai, toh original request jaane do
   return next(req);
 };

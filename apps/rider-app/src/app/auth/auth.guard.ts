@@ -1,20 +1,16 @@
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { Auth } from './auth'; // Class name 'Auth' hi hai na? Check karein.
+import { Auth } from '../services/auth'; // Path check kar lena
 
 export const authGuard = () => {
   const authService = inject(Auth);
   const router = inject(Router);
   
-  const user = authService.currentUser();
-  console.log('🛡️ Guard Checking User:', user); // 👈 Yeh Log lagayein
-
-  if (user) {
-    console.log('✅ Access Granted');
+  if (authService.isAuthenticated()) {
     return true;
   }
 
-  console.log('🛑 Access Denied -> Redirecting to Login');
-  router.navigate(['/login']);
-  return false;
+  // Agar na Signal mila, na LocalStorage, tabhi Login par bhejo
+  console.log('🛑 Access Denied: No Token found in Storage');
+  return router.createUrlTree(['/login']);
 };

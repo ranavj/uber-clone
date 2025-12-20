@@ -25,4 +25,13 @@ export class RidesController {
   acceptRide(@Param('id') id: string, @Body() body: { driverId: string }) {
     return this.ridesService.updateStatus(id, 'ACCEPTED', body.driverId);
   }
+
+  @Patch(':id/status')
+  updateStatus(
+    @Param('id') id: string, 
+    @Body() body: { status: 'ARRIVED' | 'IN_PROGRESS' | 'COMPLETED' }
+  ) {
+    console.log(`Updating Ride ${id} to ${body.status}`);
+    return this.ridesService.updateStatus(id, body.status);
+  }
 }

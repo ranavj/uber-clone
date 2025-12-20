@@ -57,7 +57,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   bookingStage = signal<'select-ride' | 'searching' | 'confirmed'>('select-ride');
 
   assignedDriver = signal<DriverDetails | null>(null);
-
+  private animationFrameId: number | null = null;
   // Class Variables
   sourceLocation: google.maps.LatLngLiteral | null = null;
   carIcon: google.maps.Icon = {
@@ -81,9 +81,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  ngOnDestroy() {
-    this.socketService.disconnect();
-  }
+  
 
   // Map & Location Logic ---
 
@@ -267,5 +265,80 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     // 2. Update UI
     this.assignedDriver.set(driver);
     this.bookingStage.set('confirmed'); // ✅ Matches HTML condition
+    // Hum maan lete hain jo pehli dummy car thi, wahi driver hai
+    const driverStartPos = this.markers()[0].position; 
+    
+    // Clear all markers first
+    this.markers.set([]); 
+
+    // Add User Marker back
+    if (this.sourceLocation) {
+      this.addMarker(this.sourceLocation, 'You');
+    }
+
+    // 3. 🏁 Animation Start Karo!
+    if (this.sourceLocation) {
+      this.animateCar(driverStartPos, this.sourceLocation);
+    }
   }
+
+  // 🏎️ The Animation Logic (Linear Interpolation)
+  animateCar(start: google.maps.LatLngLiteral, end: google.maps.LatLngLiteral) {
+    let progress = 0;
+    const speed = 0.005; // Jitna chhota number, utni slow car chalegi
+
+    const animate = () => {
+      progress += speed;
+
+      // Agar car pahunch gayi
+      if (progress >= 1) {
+        this.updateDriverMarker(end); // Final position set karo
+        console.log('🚖 Driver Arrived!');
+        return;
+      }
+
+      // Current Position calculate karo (Maths magic)
+      const currentLat = start.lat + (end.lat - start.lat) * progress;
+      const currentLng = start.lng + (end.lng - start.lng) * progress;
+      
+      const currentPos = { lat: currentLat, lng: currentLng };
+
+      // Marker update karo
+      this.updateDriverMarker(currentPos);
+
+      // Agla frame request karo (Smooth loop)
+      this.animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animate();
+  }
+  // Helper to update just the driver marker
+  updateDriverMarker(pos: google.maps.LatLngLiteral) {
+    // Hum markers array update karenge taaki UI refresh ho
+    // Note: Isme thoda performance hit ho sakta hai signals ke saath, 
+    // par demo ke liye perfect hai.
+    
+    this.markers.update(current => {
+      // Sirf User ka marker rakho, Driver ka naya add karo
+      const userMarker = current.find(m => m.title === 'You');
+      
+      const driverMarker: MapMarkerConfig = {
+        position: pos,
+        title: 'Your Driver',
+        options: { 
+            icon: this.carIcon,
+            zIndex: 100 // Driver hamesha upar dikhe
+        } 
+      };
+
+      return userMarker ? [userMarker, driverMarker] : [driverMarker];
+    });
+  }
+  ngOnDestroy() {
+    this.socketService.disconnect();
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+  }
+  
 }
