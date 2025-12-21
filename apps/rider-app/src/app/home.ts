@@ -3,13 +3,12 @@ import { AfterViewInit, Component, ElementRef, inject, OnInit, OnDestroy, PLATFO
 import { Router } from '@angular/router';
 
 // Services
-
-
-// UI Components
-import { MapMarkerConfig, UiButton, UiMapComponent } from '@uber/ui';
 import { RideService } from './services/ride.services';
 import { Auth } from './services/auth';
 import { SocketService } from './services/socket';
+
+// UI Components
+import { MapMarkerConfig, UiButton, UiMapComponent } from '@uber/ui';
 
 // Interfaces
 interface RideOption {
@@ -46,18 +45,18 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
 
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
-  // Signals (State Management)
+  // --- SIGNALS (State Management) ---
   center = signal<google.maps.LatLngLiteral>({ lat: 28.6139, lng: 77.2090 });
   markers = signal<MapMarkerConfig[]>([]);
   directionsResult = signal<google.maps.DirectionsResult | null>(null);
-
   rideOptions = signal<RideOption[]>([]);
 
-  // Stages: 'select-ride' -> 'searching' -> 'confirmed' (Driver Found)
-  bookingStage = signal<'select-ride' | 'searching' | 'confirmed'>('select-ride');
+  // 👇 STAGES: 'trip-started' aur 'summary' dono added hain
+  bookingStage = signal<'select-ride' | 'searching' | 'confirmed' | 'trip-started' | 'summary'>('select-ride');
 
   assignedDriver = signal<DriverDetails | null>(null);
-  private animationFrameId: number | null = null;
+  completedRide = signal<any>(null); // Bill data ke liye
+
   // Class Variables
   sourceLocation: google.maps.LatLngLiteral | null = null;
   carIcon: google.maps.Icon = {
@@ -65,13 +64,15 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     scaledSize: { width: 40, height: 40, equals: () => false } as google.maps.Size,
   };
 
+  // Live Tracking Variables
+  private currentCarPos: google.maps.LatLngLiteral | null = null;
+  private driverAnimationId: number | null = null;
+  private animationFrameId: number | null = null;
+
   ngOnInit() {
-    // 1. Browser Check & Location
     if (isPlatformBrowser(this.platformId)) {
       this.getCurrentLocation();
     }
-
-    // 2. Socket Connection
     this.socketService.connect();
   }
 
@@ -81,9 +82,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  
-
-  // Map & Location Logic ---
+  // --- MAP & LOCATION LOGIC ---
 
   getCurrentLocation() {
     if (isPlatformBrowser(this.platformId) && navigator.geolocation) {
@@ -117,7 +116,6 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     for (let i = 0; i < 4; i++) {
       const lat = center.lat + (Math.random() - 0.5) * 0.01;
       const lng = center.lng + (Math.random() - 0.5) * 0.01;
-
       dummyCars.push({
         position: { lat, lng },
         title: `Uber Driver ${i + 1}`,
@@ -143,7 +141,6 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
         const destPos = { lat, lng };
 
         this.center.set(destPos);
-
         if (this.sourceLocation) {
           this.calculateRoute(this.sourceLocation, destPos);
         } else {
@@ -176,37 +173,17 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     const durationText = leg.duration.text;
 
     const options: RideOption[] = [
-      {
-        id: 'moto',
-        name: 'Uber Moto',
-        image: 'https://cdn-icons-png.flaticon.com/512/3721/3721619.png',
-        price: Math.round(20 + (10 * distanceKm)),
-        time: durationText
-      },
-      {
-        id: 'uber_go',
-        name: 'Uber Go',
-        image: 'https://cdn-icons-png.flaticon.com/512/11104/11104431.png',
-        price: Math.round(40 + (15 * distanceKm)),
-        time: durationText
-      },
-      {
-        id: 'premier',
-        name: 'Uber Premier',
-        image: 'https://cdn-icons-png.flaticon.com/512/5035/5035162.png',
-        price: Math.round(60 + (22 * distanceKm)),
-        time: durationText
-      }
+      { id: 'moto', name: 'Uber Moto', image: 'https://cdn-icons-png.flaticon.com/512/3721/3721619.png', price: Math.round(20 + (10 * distanceKm)), time: durationText },
+      { id: 'uber_go', name: 'Uber Go', image: 'https://cdn-icons-png.flaticon.com/512/11104/11104431.png', price: Math.round(40 + (15 * distanceKm)), time: durationText },
+      { id: 'premier', name: 'Uber Premier', image: 'https://cdn-icons-png.flaticon.com/512/5035/5035162.png', price: Math.round(60 + (22 * distanceKm)), time: durationText }
     ];
-
     this.rideOptions.set(options);
   }
 
-  // --- 🚕 Booking Logic (The Real Deal) ---
+  // --- 🚕 BOOKING LOGIC (Main Flow) ---
 
   requestRide(rideId: string) {
     console.log('Requesting ride:', rideId);
-
     const user = this.authService.currentUser();
     if (!user) {
       alert('Please Login first');
@@ -214,32 +191,57 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    // 1. UI Update -> Searching
     this.bookingStage.set('searching');
 
-    // 2. Prepare Payload
     const ridePayload = {
       pickupLat: this.sourceLocation?.lat || 28.6139,
       pickupLng: this.sourceLocation?.lng || 77.2090,
-      dropLat: this.center().lat, // Destination
+      dropLat: this.center().lat,
       dropLng: this.center().lng,
       pickupAddr: "Current Location",
       dropAddr: "Destination",
-      price: 150, // Should be dynamic based on selection, simplified for now
+      price: 150,
       riderId: user.id
     };
 
-    // 3. API Call
     this.rideService.requestRide(ridePayload).subscribe({
       next: (ride) => {
         console.log('✅ Ride Booked! ID:', ride.id);
 
-        // 4. Listen for Driver (Socket)
+        // 1. STATUS LISTENER (Ride Updates)
         this.socketService.listen(`ride-status-${ride.id}`, (updatedRide: any) => {
-          console.log('🔔 SOCKET UPDATE:', updatedRide.status);
+          console.log('🔔 Status Update:', updatedRide.status);
 
-          if (updatedRide.status === 'ACCEPTED') {
-            this.handleDriverFound(updatedRide);
+          switch (updatedRide.status) {
+            case 'ACCEPTED':
+              this.handleDriverFound(updatedRide);
+              break;
+            case 'ARRIVED':
+              alert('🚖 Driver Arrived at Pickup!');
+              break;
+            case 'IN_PROGRESS':
+              // Trip Start ho gayi, UI update karo
+              this.bookingStage.set('trip-started');
+              break;
+            case 'COMPLETED':
+              // Trip Khatam: Bill Dikhao (Reset mat karo abhi)
+              this.completedRide.set(updatedRide);
+              this.bookingStage.set('summary');
+              if (this.driverAnimationId) cancelAnimationFrame(this.driverAnimationId);
+              break;
+          }
+        });
+
+        // 2. LIVE TRACKING LISTENER (Car Movement)
+        this.socketService.listen(`driver-location-${ride.id}`, (location: any) => {
+          const newPos = { lat: location.lat, lng: location.lng };
+
+          if (!this.currentCarPos) {
+            this.currentCarPos = newPos;
+            this.updateDriverMarker(newPos);
+          } else {
+            // Glide Animation
+            this.animateMarkerTo(this.currentCarPos, newPos, 1000);
           }
         });
       },
@@ -252,7 +254,6 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   }
 
   handleDriverFound(updatedRide: any) {
-    // 1. Backend se Driver ID aayi hai, Mock Details for now
     const driver: DriverDetails = {
       name: 'Vikram Singh',
       carModel: 'Maruti Swift',
@@ -262,83 +263,104 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
       phone: '+91 9876543210'
     };
 
-    // 2. Update UI
     this.assignedDriver.set(driver);
-    this.bookingStage.set('confirmed'); // ✅ Matches HTML condition
-    // Hum maan lete hain jo pehli dummy car thi, wahi driver hai
-    const driverStartPos = this.markers()[0].position; 
-    
-    // Clear all markers first
-    this.markers.set([]); 
+    this.bookingStage.set('confirmed');
 
-    // Add User Marker back
+    // Clear Markers & Show Initial Animation
+    this.markers.set([]);
     if (this.sourceLocation) {
       this.addMarker(this.sourceLocation, 'You');
-    }
-
-    // 3. 🏁 Animation Start Karo!
-    if (this.sourceLocation) {
-      this.animateCar(driverStartPos, this.sourceLocation);
+      // Mock Start for initial visual
+      const mockDriverStart = {
+        lat: this.sourceLocation.lat + 0.01,
+        lng: this.sourceLocation.lng + 0.01
+      };
+      this.animateCar(mockDriverStart, this.sourceLocation);
     }
   }
 
-  // 🏎️ The Animation Logic (Linear Interpolation)
-  animateCar(start: google.maps.LatLngLiteral, end: google.maps.LatLngLiteral) {
-    let progress = 0;
-    const speed = 0.005; // Jitna chhota number, utni slow car chalegi
+  // --- ANIMATION ENGINES ---
 
-    const animate = () => {
-      progress += speed;
+  animateMarkerTo(start: google.maps.LatLngLiteral, end: google.maps.LatLngLiteral, duration: number) {
+    const startTime = performance.now();
+    if (this.driverAnimationId) {
+      cancelAnimationFrame(this.driverAnimationId);
+    }
 
-      // Agar car pahunch gayi
-      if (progress >= 1) {
-        this.updateDriverMarker(end); // Final position set karo
-        console.log('🚖 Driver Arrived!');
-        return;
-      }
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
 
-      // Current Position calculate karo (Maths magic)
       const currentLat = start.lat + (end.lat - start.lat) * progress;
       const currentLng = start.lng + (end.lng - start.lng) * progress;
-      
-      const currentPos = { lat: currentLat, lng: currentLng };
+      const intermediatePos = { lat: currentLat, lng: currentLng };
 
-      // Marker update karo
-      this.updateDriverMarker(currentPos);
+      this.updateDriverMarker(intermediatePos);
+      this.currentCarPos = intermediatePos;
 
-      // Agla frame request karo (Smooth loop)
+      if (progress < 1) {
+        this.driverAnimationId = requestAnimationFrame(animate);
+      }
+    };
+    this.driverAnimationId = requestAnimationFrame(animate);
+  }
+
+  animateCar(start: google.maps.LatLngLiteral, end: google.maps.LatLngLiteral) {
+    let progress = 0;
+    const speed = 0.005;
+    const animate = () => {
+      progress += speed;
+      if (progress >= 1) {
+        this.updateDriverMarker(end);
+        return;
+      }
+      const currentLat = start.lat + (end.lat - start.lat) * progress;
+      const currentLng = start.lng + (end.lng - start.lng) * progress;
+      this.updateDriverMarker({ lat: currentLat, lng: currentLng });
       this.animationFrameId = requestAnimationFrame(animate);
     };
-
     animate();
   }
-  // Helper to update just the driver marker
+
   updateDriverMarker(pos: google.maps.LatLngLiteral) {
-    // Hum markers array update karenge taaki UI refresh ho
-    // Note: Isme thoda performance hit ho sakta hai signals ke saath, 
-    // par demo ke liye perfect hai.
-    
     this.markers.update(current => {
-      // Sirf User ka marker rakho, Driver ka naya add karo
-      const userMarker = current.find(m => m.title === 'You');
-      
+      // User Marker preserve karo, Driver update karo
+      const userMarker = current.find(m => m.title === 'You' || m.title === 'Destination');
       const driverMarker: MapMarkerConfig = {
         position: pos,
         title: 'Your Driver',
-        options: { 
-            icon: this.carIcon,
-            zIndex: 100 // Driver hamesha upar dikhe
-        } 
+        options: { icon: this.carIcon, zIndex: 100 }
       };
-
       return userMarker ? [userMarker, driverMarker] : [driverMarker];
     });
   }
-  ngOnDestroy() {
-    this.socketService.disconnect();
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
+
+  // --- RESET & CLEANUP ---
+
+  // Rating Submit hone ke baad hi reset hoga
+  submitRating() {
+    alert('Thanks for rating! 🌟');
+    this.resetUI();
+  }
+
+  resetUI() {
+    this.bookingStage.set('select-ride');
+    this.markers.set([]);
+    this.assignedDriver.set(null);
+    this.directionsResult.set(null);
+    this.rideOptions.set([]);
+    this.completedRide.set(null);
+
+    // User ki location wapas dikhao
+    if (this.sourceLocation) {
+      this.addMarker(this.sourceLocation, 'You');
+      this.center.set(this.sourceLocation);
     }
   }
-  
+
+  ngOnDestroy() {
+    this.socketService.disconnect();
+    if (this.driverAnimationId) cancelAnimationFrame(this.driverAnimationId);
+    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+  }
 }

@@ -87,7 +87,7 @@
       "executor": "@nx/web:file-server",
       "options": {
         "buildTarget": "driver-app:build",
-        "port": 4200,
+        "port": 4100,
         "staticFilePath": "dist/apps/driver-app/browser",
         "spa": true
       }

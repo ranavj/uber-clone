@@ -1,13 +1,18 @@
-import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch , Request, UseGuards} from '@nestjs/common';
 import { RidesService } from './rides.service';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('rides')
 export class RidesController {
-  constructor(private readonly ridesService: RidesService) {}
+  constructor(private readonly ridesService: RidesService) { }
 
-  @Post()
-  create(@Body() createRideDto: any) {
-    return this.ridesService.create(createRideDto);
+  @UseGuards(AuthGuard('jwt'))
+  @Post('request')
+  create(@Body() createRideDto: any, @Request() req) {
+
+    const userId = req.user.id;
+
+    return this.ridesService.create(createRideDto, userId);
   }
 
   @Get()
@@ -28,10 +33,12 @@ export class RidesController {
 
   @Patch(':id/status')
   updateStatus(
-    @Param('id') id: string, 
+    @Param('id') id: string,
     @Body() body: { status: 'ARRIVED' | 'IN_PROGRESS' | 'COMPLETED' }
   ) {
     console.log(`Updating Ride ${id} to ${body.status}`);
     return this.ridesService.updateStatus(id, body.status);
   }
+
+
 }

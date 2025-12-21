@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Serve Auth",
+      "command": "npx nx serve auth",
+      "type": "shell",
+      "presentation": { "group": "servers" }
+    },
+    {
+      "label": "Serve Rider",
+      "command": "npx nx serve rider-app",
+      "type": "shell",
+      "presentation": { "group": "servers" }
+    },
+    {
+      "label": "Serve Driver",
+      "command": "npx nx serve driver-app",
+      "type": "shell",
+      "presentation": { "group": "servers" }
+    },
+    {
+      "label": "Prisma Studio",
+      "command": "npx prisma studio",
+      "type": "shell",
+      "presentation": { "group": "servers" }
+    },
+    {
+      "label": "🚀 Start Uber Clone",
+      "dependsOn": ["Serve Auth", "Serve Rider", "Serve Driver", "Prisma Studio"],
+      "problemMatcher": []
+    }
+  ]
+}

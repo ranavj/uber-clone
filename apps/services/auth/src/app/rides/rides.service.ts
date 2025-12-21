@@ -10,7 +10,7 @@ export class RidesService {
   ) { }
 
   // 1. Ride Create Karo (Asli Database mein)
-  async create(createRideDto: any) {
+  async create(createRideDto: any, userId: string) {
     const newRide = await this.prisma.ride.create({
       data: {
         pickupLat: createRideDto.pickupLat,
@@ -21,7 +21,9 @@ export class RidesService {
         dropAddr: createRideDto.dropAddr,
         price: createRideDto.price,
         status: 'SEARCHING',
-        riderId: createRideDto.riderId, // User ID (Jo request bhej raha hai)
+        rider: {
+          connect: { id: userId }
+        }
       },
     });
     this.ridesGateway.server.emit('new-ride-available', newRide);

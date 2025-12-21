@@ -37,4 +37,12 @@ export class RidesGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`Got message: ${data}`);
     return { event: 'pong', data: 'Hello from Server!' };
   }
+
+  @SubscribeMessage('updateDriverLocation')
+  handleDriverLocation(@MessageBody() data: { rideId: string, lat: number, lng: number, heading: number }) {
+    // console.log(`📍 Driver moved: ${data.lat}, ${data.lng}`); // Debugging ke liye (Optional)
+    
+    // Server Rider ko forward karega: "Dekho, Driver yahan pahunch gaya"
+    this.server.emit(`driver-location-${data.rideId}`, data);
+  }
 }

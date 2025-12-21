@@ -2,7 +2,9 @@
   "name": "@uber-clone/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "start:all": "concurrently -n \"API,RIDER,DRIVER,DB\" -c \"blue,green,magenta,yellow\" \"npx cross-env NX_DAEMON=false nx serve auth\" \"npx cross-env NX_DAEMON=false nx serve rider-app\" \"npx cross-env NX_DAEMON=false nx serve driver-app\" \"npx prisma studio\""
+  },
   "private": true,
   "devDependencies": {
     "@angular-devkit/core": "~20.3.0",
@@ -35,6 +37,8 @@
     "@typescript-eslint/utils": "^8.40.0",
     "angular-eslint": "^20.3.0",
     "autoprefixer": "^10.4.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "cypress": "^15.6.0",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^10.0.0",
