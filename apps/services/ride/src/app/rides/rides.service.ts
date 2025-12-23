@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { RidesGateway } from './rides.gateway';
 import { PrismaService } from '@uber-clone/db';
+import { CreateRideDto } from '@uber-clone/dtos';
 
 @Injectable()
 export class RidesService {
@@ -10,7 +11,7 @@ export class RidesService {
   ) { }
 
   // 1. Ride Create Karo (Asli Database mein)
-  async create(createRideDto: any, userId: string) {
+  async create(createRideDto: CreateRideDto, userId: string) {
     const newRide = await this.prisma.ride.create({
       data: {
         pickupLat: createRideDto.pickupLat,
@@ -56,5 +57,44 @@ export class RidesService {
       where: { id },
       include: { rider: true, driver: true }
     });
+  }
+
+  // 📜 GET HISTORY: User ki saari rides layega
+  async getMyRides(userId: string) {
+    return this.prisma.ride.findMany({
+      where: { 
+        riderId: userId // Sirf is user ki rides
+      },
+      include: {
+        driver: true, // Driver ki details bhi chahiye history dikhane ke liye
+      },
+      orderBy: {
+        createdAt: 'desc', // Sabse nayi ride sabse upar (Latest First)
+      },
+    });
+  }
+
+  // 🚫 CANCEL RIDE
+  async cancelRide(rideId: string) {
+    // 1. Pehle Ride dhundo
+    const ride = await this.prisma.ride.findUnique({ where: { id: rideId } });
+
+    // 2. Validation: Agar ride khatam ho chuki hai, toh cancel mat karo
+    if (ride.status === 'COMPLETED') {
+      throw new Error('Cannot cancel a completed ride');
+    }
+
+    // 3. Status Update karo
+    const updatedRide = await this.prisma.ride.update({
+      where: { id: rideId },
+      data: { status: 'CANCELLED' },
+      include: { driver: true, rider: true } // Notification ke liye details chahiye
+    });
+
+    // 4. Driver (aur Rider) ko Notify karo
+    // Hum wahi 'notifyRideStatus' use kar rahe hain jo humne Gateway mein banaya tha
+    this.ridesGateway.notifyRideStatus(updatedRide);
+
+    return updatedRide;
   }
 }

@@ -1,0 +1,9 @@
+{
+  "name": "common-auth",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/common/auth/src",
+  "projectType": "library",
+  "tags": [],
+  "// targets": "to see all targets run: nx show project common-auth --web",
+  "targets": {}
+}

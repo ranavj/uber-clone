@@ -1,21 +1,30 @@
 import { Route } from '@angular/router';
-import { authGuard } from './auth/auth.guard'; // 👈 Guard import karein
-import { Home } from './home';
+import { authGuard } from './auth/auth.guard';
 import { Login } from './login';
 import { Signup } from './signup/signup';
+import { Home } from './home';
+import { History } from './history/history';
 
 export const appRoutes: Route[] = [
-    // 1. Public Routes (Sabke liye khule hain)
+    // 1. Public Routes
     { path: 'login', component: Login },
     { path: 'signup', component: Signup },
-
-    // 2. Protected Route (Sirf Logged In users ke liye)
-    { 
-        path: '', 
-        component: Home, 
-        canActivate: [authGuard] // 🛡️ Yahan Security Guard khada kar diya
+    {
+        path: 'history',
+        component: History,
+        canActivate: [authGuard]
+    },
+    {
+        path: '',
+        component: Home,
+        canActivate: [authGuard],
+        // Iska matlab: Sirf tab Home kholo jab URL exact empty ho.
+        // Agar yeh nahi lagaya toh '/history' bhi Home khol dega.
+        pathMatch: 'full'
     },
 
-    // 3. Fallback: Agar kuch ulti-seedhi URL dale toh Home (ya Login) par bhejo
+
+
+    // 3. Fallback
     { path: '**', redirectTo: '' }
 ];

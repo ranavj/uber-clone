@@ -91,4 +91,16 @@ export class RideService {
       })
     );
   }
+
+  getHistory() {
+    // URL: http://localhost:3002/api/rides/history
+    // Return Type: Ride[] (Array of Rides)
+    return this.http.get<Ride[]>(`${this.apiUrl}/rides/history`);
+  }
+
+  cancelRide(rideId: string) {
+    // PATCH /api/rides/:id/cancel
+    // Body empty {} hai kyunki id URL mein hai
+    return this.http.patch<Ride>(`${this.apiUrl}/rides/${rideId}/cancel`, {});
+  }
 }

@@ -16,157 +16,34 @@
   </div>
   }
 
-  @if (rideOptions().length > 0 && bookingStage() === 'select-ride') {
-  <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-5px_20px_rgba(0,0,0,0.1)] p-6 z-20 animate-slide-up">
-    
-    <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4"></div>
-    <h3 class="text-xl font-bold mb-4 text-gray-900">Choose a ride</h3>
 
-    <div class="space-y-1 max-h-60 overflow-y-auto mb-4">
-      @for (ride of rideOptions(); track ride.id) {
-      <div (click)="requestRide(ride.id)"
-        class="flex items-center justify-between p-3 rounded-xl hover:bg-gray-100 border-2 border-transparent active:border-black cursor-pointer transition-all duration-200">
-        <div class="flex items-center gap-4">
-          <img [src]="ride.image" class="w-14 h-14 object-contain" alt="Car">
-          <div>
-            <h4 class="font-bold text-gray-900 text-lg">{{ ride.name }}</h4>
-            <div class="flex items-center gap-1 text-xs text-gray-500 font-medium">
-              <span>{{ ride.time }}</span> • <span>15:42 dropoff</span>
-            </div>
-          </div>
-        </div>
-        <div class="text-right">
-          <span class="block text-lg font-bold text-gray-900">₹{{ ride.price }}</span>
-        </div>
-      </div>
-      }
-    </div>
-
-    <uber-button class="w-full" size="lg">Request Uber</uber-button>
-  </div>
+  @if (bookingStage() === 'select-ride' && rideOptions().length > 0) {
+    <app-ride-selection 
+      [options]="rideOptions()" 
+      (select)="requestRide($event)">
+    </app-ride-selection>
   }
 
   @if (bookingStage() === 'searching') {
-  <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-5px_20px_rgba(0,0,0,0.1)] p-8 z-20 text-center animate-slide-up">
-    <div class="relative w-24 h-24 mx-auto mb-6">
-      <div class="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-75"></div>
-      <div class="relative w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100">
-        <img src="https://cdn-icons-png.flaticon.com/512/11104/11104431.png" class="w-12 h-12 opacity-60">
-      </div>
-    </div>
-
-    <h3 class="text-2xl font-bold text-gray-900">Connecting...</h3>
-    <p class="text-gray-500 mt-2 font-medium">Finding nearby drivers for you</p>
-
-    <div class="w-full h-1.5 bg-gray-100 mt-8 rounded-full overflow-hidden">
-      <div class="h-full bg-black animate-progress w-1/3 rounded-full"></div>
-    </div>
-  </div>
+    <app-searching-loader 
+      (cancel)="cancelRequest()">
+    </app-searching-loader>
   }
 
   @if ((bookingStage() === 'confirmed' || bookingStage() === 'trip-started') && assignedDriver()) {
-  <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-5px_20px_rgba(0,0,0,0.1)] p-6 z-20 animate-slide-up">
-
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <p class="text-sm text-gray-500 font-medium">
-           @if (bookingStage() === 'confirmed') { Pickup in 3 mins } 
-           @else { On the way to destination }
-        </p>
-        <h2 class="text-2xl font-bold text-gray-900">
-           @if (bookingStage() === 'confirmed') { Driver Arriving } 
-           @else { Trip in Progress 🚀 }
-        </h2>
-      </div>
-      <div class="flex items-center gap-1 bg-gray-100 px-3 py-1.5 rounded-full">
-        <span class="text-sm font-bold">{{ assignedDriver()!.rating }}</span>
-        <span class="text-amber-500 text-xs">★</span>
-      </div>
-    </div>
-
-    <div class="flex items-center gap-4 bg-gray-50 p-4 rounded-xl mb-6">
-      <img [src]="assignedDriver()?.image || 'https://cdn-icons-png.flaticon.com/512/3048/3048122.png'" 
-           class="w-16 h-16 rounded-full border-2 border-white shadow-sm object-cover">
-           
-      <div class="flex-1">
-        <h3 class="font-bold text-lg text-gray-900">{{ assignedDriver()!.name }}</h3>
-        <p class="text-gray-500 text-sm font-medium">{{ assignedDriver()!.carModel }}</p>
-      </div>
-      <div class="text-right">
-        <div class="bg-white px-3 py-1.5 rounded-lg border border-gray-200 font-mono font-bold text-sm shadow-sm tracking-wide">
-          {{ assignedDriver()!.carNumber }}
-        </div>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-4">
-      <button class="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-gray-900 transition-colors">
-        📞 Call Driver
-      </button>
-      
-      @if (bookingStage() === 'confirmed') {
-        <button class="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold transition-colors">
-          Cancel
-        </button>
-      } @else {
-        <button class="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold transition-colors">
-          Share Status
-        </button>
-      }
-    </div>
-
-  </div>
+    <app-trip-details 
+      [driver]="assignedDriver()"
+      [status]="bookingStage()"
+      (cancel)="cancelRequest()"
+      (callDriver)="resetUI()"> 
+      </app-trip-details>
   }
 
   @if (bookingStage() === 'summary' && completedRide()) {
-  <div class="absolute inset-0 z-50 bg-gray-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fade-in">
-    
-    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
-      
-      <div class="bg-green-600 p-8 text-center">
-        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-          <span class="text-3xl">✅</span>
-        </div>
-        <h2 class="text-2xl font-bold text-white">Ride Completed!</h2>
-        <p class="text-green-100">Hope you had a safe journey.</p>
-      </div>
-
-      <div class="p-6">
-        <div class="text-center mb-8">
-          <p class="text-gray-500 text-sm font-medium uppercase tracking-wide">Total Fare</p>
-          <h1 class="text-5xl font-bold text-gray-900 mt-2">₹{{ completedRide()!.price }}</h1>
-        </div>
-
-        <div class="space-y-4 mb-8">
-          <div class="flex justify-between p-4 bg-gray-50 rounded-xl">
-            <span class="text-gray-600">Base Fare</span>
-            <span class="font-bold">₹40</span>
-          </div>
-          <div class="flex justify-between p-4 bg-gray-50 rounded-xl">
-            <span class="text-gray-600">Distance Charge</span>
-            <span class="font-bold">₹{{ (completedRide()?.price || 0) - 50 }}</span>
-          </div>
-          <div class="flex justify-between p-4 bg-green-50 text-green-700 rounded-xl border border-green-100">
-            <span class="font-medium">Discount</span>
-            <span class="font-bold">-₹10.00</span>
-          </div>
-        </div>
-
-        <div class="text-center mb-8">
-          <p class="text-gray-500 mb-3">Rate your Driver</p>
-          <div class="flex justify-center gap-2 text-3xl cursor-pointer">
-            <span>⭐</span><span>⭐</span><span>⭐</span><span>⭐</span><span class="text-gray-300">⭐</span>
-          </div>
-        </div>
-
-        <button (click)="submitRating()" 
-          class="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-transform active:scale-95">
-          Pay & Close
-        </button>
-      </div>
-
-    </div>
-  </div>
+    <app-ride-summary 
+      [ride]="completedRide()" 
+      (close)="submitRating()">
+    </app-ride-summary>
   }
 
 </div>

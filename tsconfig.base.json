@@ -18,7 +18,9 @@
       "@uber/ui": ["libs/shared/ui/src/index.ts"],
       "@uber-clone/db": ["libs/db/src/index.ts"],
       "@uber-clone/interfaces": ["libs/interfaces/src/index.ts"],
-      "@uber-clone/socket-client": ["libs/common/socket-client/src/index.ts"]
+      "@uber-clone/socket-client": ["libs/common/socket-client/src/index.ts"],
+      "@uber-clone/common-auth": ["libs/common/auth/src/index.ts"],
+      "@uber-clone/dtos": ["libs/common/dtos/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

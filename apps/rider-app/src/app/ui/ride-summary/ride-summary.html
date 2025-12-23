@@ -1,0 +1,48 @@
+<div class="absolute inset-0 z-50 bg-gray-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fade-in">
+    
+    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
+      
+      <div class="bg-green-600 p-8 text-center">
+        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+          <span class="text-3xl">✅</span>
+        </div>
+        <h2 class="text-2xl font-bold text-white">Ride Completed!</h2>
+        <p class="text-green-100">Hope you had a safe journey.</p>
+      </div>
+
+      <div class="p-6">
+        <div class="text-center mb-8">
+          <p class="text-gray-500 text-sm font-medium uppercase tracking-wide">Total Fare</p>
+          <h1 class="text-5xl font-bold text-gray-900 mt-2">₹{{ ride?.price }}</h1>
+        </div>
+
+        <div class="space-y-4 mb-8">
+          <div class="flex justify-between p-4 bg-gray-50 rounded-xl">
+            <span class="text-gray-600">Base Fare</span>
+            <span class="font-bold">₹40</span>
+          </div>
+          <div class="flex justify-between p-4 bg-gray-50 rounded-xl">
+            <span class="text-gray-600">Distance Charge</span>
+            <span class="font-bold">₹{{ (ride?.price || 0) - 40 + 10 }}</span>
+          </div>
+          <div class="flex justify-between p-4 bg-green-50 text-green-700 rounded-xl border border-green-100">
+            <span class="font-medium">Discount</span>
+            <span class="font-bold">-₹10.00</span>
+          </div>
+        </div>
+
+        <div class="text-center mb-8">
+          <p class="text-gray-500 mb-3">Rate your Driver</p>
+          <div class="flex justify-center gap-2 text-3xl cursor-pointer">
+            <span>⭐</span><span>⭐</span><span>⭐</span><span>⭐</span><span class="text-gray-300">⭐</span>
+          </div>
+        </div>
+
+        <button (click)="onSubmit()" 
+          class="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-transform active:scale-95">
+          Pay & Close
+        </button>
+      </div>
+
+    </div>
+</div>

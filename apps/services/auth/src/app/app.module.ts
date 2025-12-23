@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { JwtStrategy } from './jwt.strategy';
+import { CommonAuthModule } from '@uber-clone/common-auth';
 import { DbModule } from '@uber-clone/db';
 @Module({
   imports: [
@@ -19,13 +19,14 @@ import { DbModule } from '@uber-clone/db';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'secretKey'), // .env se secret lega
+        secret: configService.get<string>('JWT_SECRET', 'super-secret-key'), // .env se secret lega
         signOptions: { expiresIn: '1d' }, // Token 1 din mein expire hoga
       }),
     }),
-    DbModule
+    DbModule,
+    CommonAuthModule
   ],
   controllers: [AppController],
-  providers: [AppService, JwtStrategy],
+  providers: [AppService],
 })
 export class AppModule { }
