@@ -4,9 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { JwtStrategy } from './jwt.strategy';
-import { PrismaService } from './prisma/prisma.service';
-import { RidesModule } from './rides/rides.module';
-
+import { DbModule } from '@uber-clone/db';
 @Module({
   imports: [
     // 1. Config Module: Yeh .env file padhega
@@ -25,9 +23,9 @@ import { RidesModule } from './rides/rides.module';
         signOptions: { expiresIn: '1d' }, // Token 1 din mein expire hoga
       }),
     }),
-    RidesModule
+    DbModule
   ],
   controllers: [AppController],
-  providers: [AppService, JwtStrategy, PrismaService],
+  providers: [AppService, JwtStrategy],
 })
 export class AppModule { }

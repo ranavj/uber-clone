@@ -1,13 +1,16 @@
-import { Component, inject, PLATFORM_ID, signal, OnInit } from '@angular/core';
+import { Component, inject, PLATFORM_ID, signal, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { io, Socket } from 'socket.io-client';
 import { UiButton, UiMapComponent } from '@uber/ui'; 
 import { isPlatformBrowser } from '@angular/common';
-// 👇 Environment Import (Path ensure kar lena)
 import { environment } from '../../environments/environment'; 
 
-// 👇 TypeScript ko batane ke liye ki 'google' exist karta hai
+// ✅ 1. Import Shared Socket Library (Local service hataya)
+import { SocketService } from '@uber-clone/socket-client';
+
+// ✅ 2. Import Shared Interfaces & Constants
+import { Ride, RideStatus, SOCKET_EVENTS } from '@uber-clone/interfaces';
+
 declare var google: any;
 
 @Component({
@@ -16,25 +19,28 @@ declare var google: any;
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
-export class App implements OnInit {
-  private socket!: Socket;
+export class App implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private platformId = inject(PLATFORM_ID);
   
-  // 👇 API URL Environment se
-  private apiUrl = environment.apiUrl; 
+  // ✅ Inject Shared Service
+  private socketService = inject(SocketService);
+  
+  private apiUrl = environment.rideApiUrl; 
 
   isConnected = signal(false);
-  incomingRide = signal<any>(null);
-  activeRide = signal<any>(null);
+
+  // ✅ 3. Type Safety Applied (No more 'any')
+  incomingRide = signal<Ride | null>(null);
+  activeRide = signal<Ride | null>(null);
   
-  // ⚠️ Driver ID (Apni database wali sahi ID yahan rakhein)
+  // ⚠️ Ensure this ID matches your DB Driver ID
   driverId = '4e90f50f-a7b7-4309-862b-959cf28a71ac'; 
 
-  // 👇 ROAD SIMULATION VARIABLES
+  // Simulation Vars
   private simulationInterval: any;
-  private routePath: any[] = []; // Rasta yahan store hoga
-  private routeIndex = 0; // Hum raste mein kahan hain
+  private routePath: any[] = []; 
+  private routeIndex = 0; 
 
   get rideStatus() {
     return this.activeRide()?.status || '';
@@ -42,21 +48,18 @@ export class App implements OnInit {
 
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
-      this.initSocket();
+      // ✅ 4. Connect via Library
+      this.socketService.connect();
+      this.setupSocketListeners();
     }
   }
 
-  private initSocket() {
-    // Socket URL logic (http://localhost:3000)
-    const socketUrl = this.apiUrl.replace('/api', '');
-    this.socket = io(socketUrl);
+  private setupSocketListeners() {
+    this.isConnected.set(true);
 
-    this.socket.on('connect', () => {
-      this.isConnected.set(true);
-      console.log('✅ Driver App Connected:', this.socket.id);
-    });
-
-    this.socket.on('new-ride-available', (ride: any) => {
+    // ✅ 5. Listen using Constant (Spelling mistake proof)
+    this.socketService.listen(SOCKET_EVENTS.NEW_RIDE_AVAILABLE, (ride: Ride) => {
+      console.log('🔔 New Ride Alert via Service:', ride);
       if (!this.activeRide()) {
         this.incomingRide.set(ride);
       }
@@ -67,10 +70,11 @@ export class App implements OnInit {
     const ride = this.incomingRide();
     if (!ride) return;
 
-    this.http.patch(`${this.apiUrl}/rides/${ride.id}/accept`, {
+    // ✅ Added <Ride> generic for type safety
+    this.http.patch<Ride>(`${this.apiUrl}/rides/${ride.id}/accept`, {
       driverId: this.driverId
     }).subscribe({
-      next: (updatedRide: any) => { 
+      next: (updatedRide) => { 
         console.log('Ride Accepted:', updatedRide);
         this.incomingRide.set(null);
         this.activeRide.set(updatedRide); 
@@ -92,30 +96,31 @@ export class App implements OnInit {
     const ride = this.activeRide();
     if (!ride) return;
 
-    let nextStatus = '';
+    let nextStatus: RideStatus | null = null;
 
-    // Logic: Status change
+    // ✅ 6. Logic: Using Enum instead of strings
     switch (ride.status) {
-      case 'ACCEPTED': nextStatus = 'ARRIVED'; break;
-      case 'ARRIVED': nextStatus = 'IN_PROGRESS'; break;
-      case 'IN_PROGRESS': nextStatus = 'COMPLETED'; break;
+      case RideStatus.ACCEPTED: nextStatus = RideStatus.ARRIVED; break;
+      case RideStatus.ARRIVED: nextStatus = RideStatus.IN_PROGRESS; break;
+      case RideStatus.IN_PROGRESS: nextStatus = RideStatus.COMPLETED; break;
       default: return;
     }
 
-    this.http.patch(`${this.apiUrl}/rides/${ride.id}/status`, {
+    if (!nextStatus) return;
+
+    this.http.patch<Ride>(`${this.apiUrl}/rides/${ride.id}/status`, {
       status: nextStatus
     }).subscribe({
-      next: (updatedRide: any) => {
+      next: (updatedRide) => {
         this.activeRide.set(updatedRide);
 
-        // 🚦 START SIMULATION (SNAP TO ROAD)
-        if (nextStatus === 'IN_PROGRESS') {
-          // Pehle Google se rasta pucho, phir chalao
+        // 🚦 START SIMULATION
+        if (nextStatus === RideStatus.IN_PROGRESS) {
           this.calculateAndStartSimulation(ride);
         }
         
         // 🏁 STOP SIMULATION
-        if (nextStatus === 'COMPLETED') {
+        if (nextStatus === RideStatus.COMPLETED) {
           this.stopSimulation();
           alert(`Trip Finished! Fare: ₹${ride.price}`);
           this.activeRide.set(null);
@@ -125,11 +130,10 @@ export class App implements OnInit {
     });
   }
 
-  // 🗺️ STEP 1: Google se Road Path Nikalo
-  calculateAndStartSimulation(ride: any) {
+  // 🗺️ Google Maps Route Logic
+  calculateAndStartSimulation(ride: Ride) {
     console.log('🗺️ Calculating Route on Road...');
     
-    // Safety check: Agar Google load nahi hua
     if (typeof google === 'undefined') {
       console.error('Google Maps not loaded');
       return;
@@ -145,7 +149,6 @@ export class App implements OnInit {
 
     directionsService.route(request, (result: any, status: any) => {
       if (status === 'OK') {
-        // ✅ Road Points mil gaye (overview_path)
         this.routePath = result.routes[0].overview_path;
         this.routeIndex = 0;
         
@@ -157,35 +160,30 @@ export class App implements OnInit {
     });
   }
 
-  // 🏎️ STEP 2: Road Points par Gaadi Chalao
+  // 🏎️ Simulation Engine
   startRoadSimulation(rideId: string) {
-    this.stopSimulation(); // Reset agar pehle se chal raha ho
-
-    // Speed: 500ms (Fast update for demo)
+    this.stopSimulation(); 
     const intervalTime = 500; 
 
     this.simulationInterval = setInterval(() => {
-      // Check: Kya hum destination pahunch gaye?
       if (this.routeIndex >= this.routePath.length) {
         this.stopSimulation();
         console.log('🏁 Reached Destination (Simulation End)');
         return;
       }
 
-      // Current Point nikalo
       const point = this.routePath[this.routeIndex];
-      const lat = point.lat(); // Google Maps point function hai
+      const lat = point.lat();
       const lng = point.lng();
 
-      // 🔥 Socket Emit (Corrected)
-      this.socket.emit('updateDriverLocation', {
+      // ✅ 7. Emit using Constant (Type Safe Emit)
+      this.socketService.emit(SOCKET_EVENTS.UPDATE_DRIVER_LOCATION, {
         rideId: rideId,
         lat: lat,
         lng: lng,
-        heading: 0 // Future enhancement
+        heading: 0
       });
 
-      // Next point par badho
       this.routeIndex++;
 
     }, intervalTime);
@@ -198,5 +196,11 @@ export class App implements OnInit {
       this.routePath = [];
       this.routeIndex = 0;
     }
+  }
+
+  ngOnDestroy() {
+    // Cleanup
+    this.socketService.disconnect();
+    this.stopSimulation();
   }
 }

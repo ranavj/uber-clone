@@ -1,4 +1,5 @@
 export const environment = {
-  production: true,
-  apiUrl: 'http://localhost:3000/api'
+  production: false,
+  authApiUrl: 'http://localhost:3000/api', // 👈 Login/Signup ke liye
+  rideApiUrl: 'http://localhost:3002/api', // 👈 Rides ke liye
 };

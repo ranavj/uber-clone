@@ -3,7 +3,8 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { UiButton, UiCardComponent, UiInput } from '@uber/ui';
-import { Auth } from '../services/auth';
+import { Auth, AuthResponse } from '../services/auth';
+import { User } from '@uber-clone/interfaces';
 
 @Component({
   selector: 'app-signup',
@@ -35,7 +36,7 @@ export class Signup {
     this.errorMessage.set('');
 
     this.authService.signup(this.signupForm.value).subscribe({
-      next: () => {
+      next: (response: AuthResponse) => {
         this.isLoading.set(false);
         alert('Account Created! Please Login.');
         // ✅ Signup Success -> Go to Login Page

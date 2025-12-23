@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import { RidesGateway } from './rides.gateway';
+import { PrismaService } from '@uber-clone/db';
 
 @Injectable()
 export class RidesService {
@@ -26,7 +26,7 @@ export class RidesService {
         }
       },
     });
-    this.ridesGateway.server.emit('new-ride-available', newRide);
+    this.ridesGateway.notifyDrivers(newRide);
 
     return newRide;
   }
@@ -38,7 +38,7 @@ export class RidesService {
     });
 
     // Rider ko batao ki Driver mil gaya!
-    this.ridesGateway.server.emit(`ride-status-${rideId}`, updatedRide);
+    this.ridesGateway.notifyRideStatus(updatedRide);
 
     return updatedRide;
   }

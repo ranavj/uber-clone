@@ -4,9 +4,17 @@ import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { isPlatformBrowser, isPlatformServer } from '@angular/common';
 import { Router } from '@angular/router';
+// ✅ Import Shared Interface
+import { User } from '@uber-clone/interfaces';
 
 // 🔑 TransferState Key
-const USER_KEY = makeStateKey<any>('user_profile');
+const USER_KEY = makeStateKey<User>('user_profile');
+
+// 🛠️ Local Interface for API Response (Backend se yehi aata hai)
+export interface AuthResponse {
+  user: User;
+  access_token: string;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -14,40 +22,45 @@ const USER_KEY = makeStateKey<any>('user_profile');
 export class Auth {
   private http = inject(HttpClient);
   private router = inject(Router);
-  private apiUrl = environment.apiUrl;
   private platformId = inject(PLATFORM_ID);
   private transferState = inject(TransferState);
 
-  currentUser = signal<any>(null);
+  get apiUrl() {
+    if (isPlatformServer(this.platformId)) return 'http://localhost:3000/api';
+    return environment.authApiUrl;
+  }
+
+  // ✅ Signal ab strictly 'User' type ka hai
+  currentUser = signal<User | null>(null);
 
   constructor() {
     this.initUser();
   }
 
   private initUser() {
-    // PHASE A: TransferState Check (SSR se data aaya hai?)
+    // PHASE A: TransferState
     if (this.transferState.hasKey(USER_KEY)) {
       const user = this.transferState.get(USER_KEY, null);
-      this.currentUser.set(user);
+      if (user) {
+        this.currentUser.set(user);
+      }
       this.transferState.remove(USER_KEY);
-      console.log('🚀 Loaded User from TransferState (No API Call)');
+      console.log('🚀 Loaded User from TransferState');
       return;
     }
 
-    // PHASE B: Browser Check (LocalStorage Token -> API Call)
+    // PHASE B: Browser Check
     if (isPlatformBrowser(this.platformId)) {
       const token = localStorage.getItem('uber_token');
-
       if (token) {
-        console.log('🌍 Verifying Token with Backend...');
-
+        console.log('🌍 Verifying Token...');
         this.fetchProfile().subscribe({
           next: (user) => {
-            console.log('✅ Token Verified. User Set.');
+            console.log('✅ Token Verified');
             localStorage.setItem('uber_user', JSON.stringify(user));
           },
           error: () => {
-            console.log('❌ Token Expired. Logging out.');
+            console.log('❌ Token Expired');
             this.logout();
           }
         });
@@ -55,24 +68,18 @@ export class Auth {
     }
   }
 
+  // ✅ FETCH PROFILE: Returns 'User'
   fetchProfile() {
-    // 1. Headers object banao
     let headers = {};
-
-    // 2. Agar Browser par hain, toh LocalStorage se Token nikalo
     if (isPlatformBrowser(this.platformId)) {
       const token = localStorage.getItem('uber_token');
-      if (token) {
-        // 3. Token ko Header mein chipkao
-        headers = { 'Authorization': `Bearer ${token}` };
-      }
+      if (token) headers = { 'Authorization': `Bearer ${token}` };
     }
 
-    // 4. Request ke saath Headers bhejo
-    return this.http.get(`${this.apiUrl}/profile`, { headers }).pipe(
-      tap((user: any) => {
+    // 👇 Generic <User> lagaya
+    return this.http.get<User>(`${this.apiUrl}/profile`, { headers }).pipe(
+      tap((user: User) => {
         this.currentUser.set(user);
-
         if (isPlatformServer(this.platformId)) {
           this.transferState.set(USER_KEY, user);
         }
@@ -80,17 +87,19 @@ export class Auth {
     );
   }
 
-  //  SIGNUP FUNCTION (Added Back) ✅
+  // ✅ SIGNUP: Returns 'AuthResponse' (Fixes "No overload matches" error)
   signup(userData: any) {
-    return this.http.post(`${this.apiUrl}/register`, userData);
+    // 👇 Yahan bataya ki response mein { user, access_token } aayega
+    return this.http.post<AuthResponse>(`${this.apiUrl}/register`, userData);
   }
 
-  // Login Method
+  // ✅ LOGIN: Returns 'AuthResponse'
   login(credentials: any) {
-    return this.http.post(`${this.apiUrl}/login`, credentials).pipe(
-      tap((response: any) => {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/login`, credentials).pipe(
+      tap((response: AuthResponse) => {
         if (response.access_token) {
           this.currentUser.set(response.user);
+          
           if (isPlatformBrowser(this.platformId)) {
             localStorage.setItem('uber_user', JSON.stringify(response.user));
             localStorage.setItem('uber_token', response.access_token);
@@ -100,7 +109,6 @@ export class Auth {
     );
   }
 
-  // Guard Helper
   isAuthenticated(): boolean {
     if (this.currentUser()) return true;
     if (isPlatformBrowser(this.platformId)) {

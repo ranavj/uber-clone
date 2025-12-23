@@ -12,7 +12,8 @@ import {
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async'; 
 import { authInterceptor } from './auth/auth.interceptor';
-
+import { SOCKET_CONFIG } from '@uber-clone/socket-client';
+import { environment } from '../environments/environment';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
@@ -20,6 +21,12 @@ export const appConfig: ApplicationConfig = {
     provideRouter(appRoutes, withComponentInputBinding(), withViewTransitions()),     
     provideHttpClient(withFetch(),withInterceptors([authInterceptor])),
     provideAnimationsAsync(),
-    provideClientHydration(withEventReplay()) 
+    provideClientHydration(withEventReplay()) ,
+    {
+      provide: SOCKET_CONFIG,
+      useValue: { 
+        url: environment.rideApiUrl.replace('/api', '') // e.g. http://localhost:3002
+      }
+    }
   ],
 };

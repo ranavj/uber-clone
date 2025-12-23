@@ -3,7 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'; // Error handling ke liye
 import { CreateUserDto } from './create-user.dto';
-import { PrismaService } from './prisma/prisma.service'; // Prisma Service Inject
+import { PrismaService } from '@uber-clone/db';
 
 @Injectable()
 export class AppService {

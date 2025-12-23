@@ -26,7 +26,7 @@ export class Auth {
   private router = inject(Router);
   
   // Typo fixed (;; -> ;)
-  private apiUrl = environment.apiUrl; 
+  private apiUrl = environment.authApiUrl; 
 
   // Platform ID for SSR check
   private platformId = inject(PLATFORM_ID);

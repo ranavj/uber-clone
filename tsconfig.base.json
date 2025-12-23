@@ -15,7 +15,10 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@uber/ui": ["libs/shared/ui/src/index.ts"]
+      "@uber/ui": ["libs/shared/ui/src/index.ts"],
+      "@uber-clone/db": ["libs/db/src/index.ts"],
+      "@uber-clone/interfaces": ["libs/interfaces/src/index.ts"],
+      "@uber-clone/socket-client": ["libs/common/socket-client/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

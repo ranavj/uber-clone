@@ -11,7 +11,7 @@ export class SocketService {
   constructor() {
     // Backend URL (e.g., http://localhost:3000)
     // Note: /api nahi lagana, socket root par connect hota hai
-    const url = environment.apiUrl.replace('/api', ''); 
+    const url = environment.rideApiUrl.replace('/api', ''); 
     
     this.socket = io(url, {
       autoConnect: false // Hum manually connect karenge jab user login hoga

@@ -4,7 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { UiInput, UiButton, UiCardComponent } from '@uber/ui';
-import { Auth } from './services/auth';
+import { Auth, AuthResponse } from './services/auth';
 
 @Component({
   selector: 'app-login',
@@ -28,20 +28,19 @@ export class Login {
 
   onSubmit() {
     if (this.loginForm.invalid) return;
-
     this.isLoading.set(true);
-    this.errorMessage.set('');
 
     this.authService.login(this.loginForm.value).subscribe({
-      next: () => {
+      // ✅ Type Safe Response
+      next: (response: AuthResponse) => {
         this.isLoading.set(false);
-        // ✅ Login Success -> Go to Map (Home)
-        this.router.navigate(['/']); 
+        console.log('✅ Login Success. Token:', response.access_token);
+        this.router.navigate(['/']);
       },
       error: (err) => {
-        // Error message backend se ya default
-        this.errorMessage.set(err.error?.message || 'Invalid credentials');
+        console.error('Login Failed', err);
         this.isLoading.set(false);
+        alert('Invalid Credentials');
       }
     });
   }

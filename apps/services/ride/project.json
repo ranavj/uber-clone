@@ -50,7 +50,8 @@
       "dependsOn": ["build"],
       "options": {
         "buildTarget": "ride:build",
-        "runBuildTargetDependencies": false
+        "runBuildTargetDependencies": false,
+        "port": 3001
       },
       "configurations": {
         "development": {
