@@ -1,77 +1,130 @@
-# UberClone
+<h1>🚖 Uber Clone — Full Stack (Nx Monorepo)</h1>
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+<table>
+  <tr><th align="left">Field</th><th align="left">Details</th></tr>
+  <tr><td>Project Type</td><td>Full-Stack Uber Clone</td></tr>
+  <tr><td>Architecture</td><td>Microservices + Real-time</td></tr>
+  <tr><td>Monorepo</td><td>Nx</td></tr>
+  <tr><td>Frontend</td><td>Angular (Latest, Signals, Standalone) + Tailwind CSS</td></tr>
+  <tr><td>Backend</td><td>NestJS (Express)</td></tr>
+  <tr><td>Database</td><td>PostgreSQL + Prisma ORM</td></tr>
+  <tr><td>Real-time</td><td>Socket.io</td></tr>
+  <tr><td>Authentication</td><td>Passport JWT + BCrypt</td></tr>
+  <tr><td>Maps</td><td>Google Maps JavaScript API</td></tr>
+</table>
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+<hr/>
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+<h2>🚀 Key Features</h2>
 
-## Finish your remote caching setup
+<h3>📱 Rider App (Frontend)</h3>
+<table>
+  <tr><th align="left">Feature</th><th align="left">Description</th></tr>
+  <tr><td>Interactive Map</td><td>Pickup/Drop selection via Google Maps</td></tr>
+  <tr><td>Real-time Booking</td><td>Live driver search & ride status via WebSockets</td></tr>
+  <tr><td>Ride Estimation</td><td>Price & ETA based on distance/routing</td></tr>
+  <tr><td>Smart UI</td><td>Modular bottom sheets (Ride, Driver, Bill)</td></tr>
+  <tr><td>Ride History</td><td>Past trips with details</td></tr>
+  <tr><td>Cancellation Flow</td><td>Server-synced cancellation logic</td></tr>
+  <tr><td>State Management</td><td>Angular Signals (reactive performance)</td></tr>
+</table>
 
-[Click here to finish setting up your workspace!](https://cloud.nx.app/connect/8VRgOTEeA9)
+<h3>🛠️ Backend Services (NestJS)</h3>
+<table>
+  <tr><th align="left">Service</th><th align="left">Responsibility</th></tr>
+  <tr><td>Auth Service</td><td>JWT Login/Signup, shared strategies</td></tr>
+  <tr><td>Ride Service</td><td>Booking, pricing, DB transactions</td></tr>
+  <tr><td>Socket Gateway</td><td>Real-time events: ride-request, driver-location, trip-updates</td></tr>
+  <tr><td>Database</td><td>PostgreSQL with Prisma for type-safe queries</td></tr>
+</table>
 
+<hr/>
 
-## Run tasks
+<h2>📂 Project Structure</h2>
+<table>
+  <tr><th align="left">Path</th><th align="left">Description</th></tr>
+  <tr><td><code>apps/rider-app</code></td><td>Angular frontend for riders</td></tr>
+  <tr><td><code>apps/driver-app</code></td><td>(Coming Soon) Driver interface</td></tr>
+  <tr><td><code>apps/services/auth</code></td><td>Authentication microservice</td></tr>
+  <tr><td><code>apps/services/ride</code></td><td>Core ride logic microservice</td></tr>
+  <tr><td><code>apps/services/payment</code></td><td>(Planned) Payment service</td></tr>
+  <tr><td><code>libs/common</code></td><td>Shared DTOs, guards, interfaces</td></tr>
+  <tr><td><code>libs/db</code></td><td>Shared Prisma client & schema</td></tr>
+  <tr><td><code>libs/ui</code></td><td>Reusable UI components</td></tr>
+  <tr><td><code>libs/util-types</code></td><td>Shared TypeScript types</td></tr>
+</table>
 
-To run tasks with Nx use:
+<hr/>
 
-```sh
-npx nx <target> <project-name>
-```
+<h2>⚡ Getting Started</h2>
 
-For example:
+<h3>1) Prerequisites</h3>
+<table>
+  <tr><th align="left">Requirement</th><th align="left">Notes</th></tr>
+  <tr><td>Node.js</td><td>v18+</td></tr>
+  <tr><td>PostgreSQL</td><td>Local or Docker</td></tr>
+  <tr><td>Google Maps API Key</td><td>Required</td></tr>
+</table>
 
-```sh
-npx nx build myproject
-```
+<h3>2) Installation</h3>
+<pre><code>git clone https://github.com/ranavj/uber-clone.git
+cd uber-clone
+npm install</code></pre>
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+<h3>3) Environment Setup</h3>
+<pre><code># Database
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/uber_db?schema=public"
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+# Auth
+JWT_SECRET="your-super-secret-key"
 
-## Add new projects
+# Frontend
+NX_GOOGLE_MAPS_KEY="YOUR_GOOGLE_MAPS_API_KEY"</code></pre>
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+<h3>4) Database Migration</h3>
+<pre><code>npx prisma generate
+npx prisma db push</code></pre>
 
-To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
-```sh
-npx nx add @nx/react
-```
+<h3>5) Run the Application</h3>
+<table>
+  <tr><th align="left">Mode</th><th align="left">Command</th></tr>
+  <tr><td>Run all services</td><td><code>npm run start:all</code></td></tr>
+  <tr><td>Auth service</td><td><code>npx nx serve services-auth</code></td></tr>
+  <tr><td>Ride service</td><td><code>npx nx serve services-ride</code></td></tr>
+  <tr><td>Frontend</td><td><code>npx nx serve rider-app</code></td></tr>
+</table>
 
-Use the plugin's generator to create new projects. For example, to create a new React app or library:
+<p><b>Rider App URL:</b> <code>http://localhost:4200</code></p>
 
-```sh
-# Generate an app
-npx nx g @nx/react:app demo
+<hr/>
 
-# Generate a library
-npx nx g @nx/react:lib some-lib
-```
+<h2>🛣️ Roadmap</h2>
+<table>
+  <tr><th align="left">Item</th><th align="left">Status</th></tr>
+  <tr><td>Authentication (JWT)</td><td>✅</td></tr>
+  <tr><td>Map Integration & Routing</td><td>✅</td></tr>
+  <tr><td>Socket.io Real-time Setup</td><td>✅</td></tr>
+  <tr><td>Ride Request & Matching Logic</td><td>✅</td></tr>
+  <tr><td>Ride History & Cancellation</td><td>✅</td></tr>
+  <tr><td>Global Error Handling (Interceptors)</td><td>⏳ Next</td></tr>
+  <tr><td>Driver App Navigation</td><td>⏳</td></tr>
+  <tr><td>Payment Integration (Stripe/Razorpay)</td><td>⏳</td></tr>
+</table>
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+<hr/>
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+<h2>🤝 Contributing</h2>
+<table>
+  <tr><th align="left">Step</th><th align="left">Action</th></tr>
+  <tr><td>1</td><td>Fork the repo</td></tr>
+  <tr><td>2</td><td>Create a feature branch</td></tr>
+  <tr><td>3</td><td>Open a Pull Request</td></tr>
+</table>
 
+<hr/>
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+<h2>📄 License</h2>
+<table>
+  <tr><th align="left">Type</th></tr>
+  <tr><td>MIT License</td></tr>
+</table>
