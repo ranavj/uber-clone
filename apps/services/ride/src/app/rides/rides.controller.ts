@@ -2,12 +2,35 @@ import { Body, Controller, Get, Param, Patch, Post, Request, UseGuards, Ip } fro
 import { RidesService } from './rides.service';
 import { AuthGuard } from '@nestjs/passport';
 import { CreateRideDto } from '@uber-clone/dtos';
+import { JwtService } from '@nestjs/jwt'; // ✅ 1. Import Added
 
 @Controller('rides')
 export class RidesController {
-  constructor(private readonly ridesService: RidesService) { }
 
-  // 1. STATIC ROUTES (Sabse Pehle)
+  // ✅ 2. Inject JwtService (Token generate karne ke liye)
+  constructor(
+    private readonly ridesService: RidesService,
+    private readonly jwtService: JwtService
+  ) { }
+
+  // ==========================================
+  // 1. STATIC & DEV ROUTES (Sabse Pehle)
+  // ==========================================
+
+  // 🛠️ DEV ROUTE: Driver App ke liye Auto-Login Token
+  // URL: GET /api/rides/dev/token/:id
+  @Get('dev/token/:id')
+  getDevToken(@Param('id') id: string) {
+    // Fake Payload banaya (Driver Role ke saath)
+    const payload = { sub: id, role: 'driver' };
+
+    // Token Sign kiya
+    const token = this.jwtService.sign(payload);
+
+    console.log(`🔑 Generated Dev Token for Driver ID: ${id}`);
+    return { token };
+  }
+
   @Get('types')
   getRideTypes() {
     return [
@@ -27,9 +50,17 @@ export class RidesController {
     return defaultLocation;
   }
 
-  // ✅ MOVED UP: History ko ':id' se pehle aana zaroori hai
+  // ✅ Refresh Logic ke liye
   @UseGuards(AuthGuard('jwt'))
-  @Get('history') 
+  @Get('current-active')
+  async getActiveRide(@Request() req) {
+    console.log('🔄 Checking active ride for User ID:', req.user.id);
+    return this.ridesService.findActiveRideForUser(req.user.id);
+  }
+
+  // ✅ History Route
+  @UseGuards(AuthGuard('jwt'))
+  @Get('history')
   getHistory(@Request() req) {
     console.log('📜 Fetching history for:', req.user.id);
     return this.ridesService.getMyRides(req.user.id);
@@ -46,8 +77,10 @@ export class RidesController {
     return this.ridesService.findAll();
   }
 
+  // ==========================================
   // 2. DYNAMIC ROUTES (Sabse Last mein) ⚠️
-  // Agar 'history' iske neeche hoti, toh yeh route usse kha jata
+  // ==========================================
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.ridesService.findOne(id);

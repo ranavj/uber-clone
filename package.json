@@ -83,6 +83,8 @@
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/platform-socket.io": "^11.1.9",
     "@nestjs/websockets": "^11.1.9",
+    "@ngneat/hot-toast": "^7.0.0",
+    "@ngneat/overview": "^7.0.0",
     "@prisma/client": "^5.22.0",
     "@types/bcrypt": "^6.0.0",
     "@types/passport-jwt": "^4.0.1",
@@ -102,5 +104,8 @@
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.4.0",
     "zone.js": "~0.15.0"
+  },
+  "prisma": {
+    "seed": "ts-node libs/db/src/lib/seed.ts"
   }
 }

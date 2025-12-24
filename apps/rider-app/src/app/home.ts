@@ -20,6 +20,7 @@ import { RideSelection } from './ui/ride-selection';
 import { RideSummary } from './ui/ride-summary/ride-summary';
 import { SearchingLoader } from './ui/searching-loader/searching-loader';
 import { TripDetails } from './ui/trip-details/trip-details';
+import { HotToastService } from '@ngneat/hot-toast';
 
 interface RideOption {
   id: string;
@@ -45,11 +46,11 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   private socketService = inject(SocketService);
   private meta = inject(Meta);
   private title = inject(Title);
-  
+
   // ✅ NEW INJECTIONS
   private mapUtils = inject(MapUtils);
   private animator = inject(MarkerAnimation);
-
+  private toast = inject(HotToastService);
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
   // --- SIGNALS ---
@@ -58,7 +59,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   directionsResult = signal<google.maps.DirectionsResult | null>(null);
   rideOptions = signal<RideOption[]>([]);
   bookingStage = signal<'select-ride' | 'searching' | 'confirmed' | 'trip-started' | 'summary'>('select-ride');
-  
+
   // State Signals
   assignedDriver = signal<Driver | null>(null);
   completedRide = signal<Ride | null>(null);
@@ -76,10 +77,11 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
       this.getCurrentLocation();
+      this.socketService.connect();
+      this.checkForActiveRide();
     }
-    
-    this.socketService.connect();
-    
+
+
     this.rideService.getRideTypes().subscribe(configs => this.rideConfigs = configs);
 
     this.rideService.getInitialLocation().subscribe(serverLoc => {
@@ -96,6 +98,109 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     if (isPlatformBrowser(this.platformId)) this.initAutocomplete();
   }
 
+  // 🔄 REFRESH RECOVERY
+  checkForActiveRide() {
+    this.rideService.getCurrentRide().subscribe({
+      next: (ride) => {
+        if (ride && ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED') {
+          console.log('♻️ Restoring Session for Ride:', ride.id);
+
+          // 1. State Restore
+          this.activeRide.set(ride);
+          if (ride.driver) this.assignedDriver.set(ride.driver);
+
+          // 2. UI Restore
+          switch (ride.status) {
+            case RideStatus.SEARCHING:
+              this.bookingStage.set('searching');
+              break;
+            case RideStatus.ACCEPTED:
+            case RideStatus.ARRIVED:
+              this.bookingStage.set('confirmed');
+              // Driver dhikhao (Start point par ya last known location par)
+              this.resetMapForTrip();
+              break;
+            case RideStatus.IN_PROGRESS:
+              this.bookingStage.set('trip-started');
+              // Map ko active mode mein rakho
+              this.markers.set([]); // Socket se location aate hi marker aa jayega
+              break;
+          }
+
+          // 3. Socket Reconnect
+          this.listenToRideEvents(ride.id);
+        }
+      },
+      error: (err) => console.log('No active ride to restore.')
+    });
+  }
+
+  // 🧠 CENTRAL BRAIN: Handles all socket updates (New or Restore)
+  listenToRideEvents(rideId: string) {
+    console.log('🔌 Listening to events for:', rideId);
+
+    // 1. Status Updates (Searching -> Accepted -> Arrived -> Started -> Completed)
+    const statusEvent = SOCKET_EVENTS.RIDE_STATUS_UPDATE(rideId);
+
+    this.socketService.listen(statusEvent, (updatedRide: Ride) => {
+      console.log('🔔 Status Update:', updatedRide.status);
+      this.activeRide.set(updatedRide);
+
+      switch (updatedRide.status) {
+
+        case RideStatus.ACCEPTED:
+          if (updatedRide.driver) {
+            this.assignedDriver.set(updatedRide.driver);
+            this.bookingStage.set('confirmed');
+
+            // Agar map par driver nahi hai toh draw karo
+            if (this.markers().length === 0) this.resetMapForTrip();
+          }
+          break;
+
+        case RideStatus.ARRIVED:
+          this.bookingStage.set('confirmed');
+          this.toast.success('🚖 Driver has Arrived!');
+          break;
+
+        case RideStatus.IN_PROGRESS:
+          this.bookingStage.set('trip-started');
+          break;
+
+        case RideStatus.COMPLETED:
+          this.completedRide.set(updatedRide);
+          this.bookingStage.set('summary');
+          this.activeRide.set(null);
+          this.animator.stopAnimation(); // Stop moving car
+          this.markers.set([]); // Clear map
+          break;
+
+        case RideStatus.CANCELLED:
+          this.resetState();
+          this.toast.error('Ride was cancelled.');
+          break;
+      }
+    });
+
+    // 2. Live Tracking (Driver Location)
+    const locationEvent = SOCKET_EVENTS.DRIVER_LOCATION_UPDATE(rideId);
+    this.socketService.listen(locationEvent, (location: any) => {
+      const newPos = { lat: location.lat, lng: location.lng };
+
+      if (!this.currentCarPos) {
+        // Pehli baar location aayi (Direct set karo)
+        this.currentCarPos = newPos;
+        this.updateDriverMarker(newPos);
+      } else {
+        // Pehle se car thi (Smooth Animate karo)
+        this.animator.animateMarker(this.currentCarPos, newPos, 1000, (updatedPos) => {
+          this.updateDriverMarker(updatedPos);
+          this.currentCarPos = updatedPos;
+        });
+      }
+    });
+  }
+
   // --- MAP & LOCATION LOGIC (Cleaned Up) ---
   getCurrentLocation() {
     if (isPlatformBrowser(this.platformId) && navigator.geolocation) {
@@ -105,7 +210,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
           this.sourceLocation = pos;
           this.center.set(pos);
           this.addMarker(pos, 'You are here');
-          
+
           // ✅ OLD: Complex loop logic removed
           // ✅ NEW: Delegate to MapUtilsService
           const dummyCars = this.mapUtils.generateNearbyCars(pos, this.carIcon);
@@ -145,7 +250,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     try {
       const response = await this.mapUtils.calculateRoute(from, to);
       this.directionsResult.set(response);
-      
+
       const options = this.mapUtils.estimatePrices(response, this.rideConfigs);
       this.rideOptions.set(options);
     } catch (error) {
@@ -154,6 +259,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // --- 🚕 BOOKING LOGIC ---
+  // 🚕 Booking Request
   requestRide(rideId: string) {
     const user = this.authService.currentUser();
     if (!user) {
@@ -162,6 +268,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.bookingStage.set('searching');
+
     const ridePayload = {
       pickupLat: this.sourceLocation?.lat || 28.6139,
       pickupLng: this.sourceLocation?.lng || 77.2090,
@@ -175,59 +282,14 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
 
     this.rideService.requestRide(ridePayload).subscribe({
       next: (ride: Ride) => {
-        this.activeRide.set(ride); 
-        const statusEvent = SOCKET_EVENTS.RIDE_STATUS_UPDATE(ride.id);
-        
-        this.socketService.listen(statusEvent, (updatedRide: Ride) => {
-          this.activeRide.set(updatedRide);
+        console.log('✅ Ride Requested:', ride.id);
+        this.activeRide.set(ride);
 
-          switch (updatedRide.status) {
-            case RideStatus.ACCEPTED:
-              if(updatedRide.driver) {
-                  this.assignedDriver.set(updatedRide.driver);
-                  this.bookingStage.set('confirmed');
-              } else {
-                  this.handleMockDriverFound(); 
-              }
-              break;
-            case RideStatus.ARRIVED:
-              alert('🚖 Driver Arrived!');
-              break;
-            case RideStatus.IN_PROGRESS:
-              this.bookingStage.set('trip-started');
-              break;
-            case RideStatus.COMPLETED:
-              this.completedRide.set(updatedRide);
-              this.bookingStage.set('summary');
-              this.activeRide.set(null);
-              this.animator.stopAnimation(); // ✅ Stop animation
-              break;
-            case RideStatus.CANCELLED:
-              this.resetState();
-              alert('Ride was cancelled.');
-              break;
-          }
-        });
-
-        // Live Tracking
-        const locationEvent = SOCKET_EVENTS.DRIVER_LOCATION_UPDATE(ride.id);
-        this.socketService.listen(locationEvent, (location: any) => {
-          const newPos = { lat: location.lat, lng: location.lng };
-          
-          if (!this.currentCarPos) {
-            this.currentCarPos = newPos;
-            this.updateDriverMarker(newPos);
-          } else {
-            // ✅ NEW: Clean Animation Call (Callback logic)
-            this.animator.animateMarker(this.currentCarPos, newPos, 1000, (updatedPos) => {
-              this.updateDriverMarker(updatedPos);
-              this.currentCarPos = updatedPos;
-            });
-          }
-        });
+        // 👇 MAGIC: Logic Reuse! (No duplication)
+        this.listenToRideEvents(ride.id);
       },
       error: (err) => {
-        alert('Booking Failed!');
+        this.toast.error('Booking Failed!');
         this.bookingStage.set('select-ride');
       }
     });
@@ -245,10 +307,10 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     if (this.sourceLocation) {
       this.addMarker(this.sourceLocation, 'You');
       const mockDriverStart = { lat: this.sourceLocation.lat + 0.01, lng: this.sourceLocation.lng + 0.01 };
-      
+
       // ✅ NEW: Clean Mock Animation
       this.animator.animateMarker(mockDriverStart, this.sourceLocation, 2000, (pos) => {
-         this.updateDriverMarker(pos);
+        this.updateDriverMarker(pos);
       });
     }
   }
@@ -266,8 +328,31 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   }
 
   submitRating() {
-    alert('Thanks for rating! 🌟');
+    // 1. Toast dikhao
+    this.toast.success('Thanks for rating! 🌟', {
+      duration: 3000, // Library ko bolo 3 sec
+      position: 'bottom-center',
+      style: {
+        border: '1px solid #22c55e',
+        padding: '16px',
+        color: '#14532d',
+        background: '#f0fdf4',
+        fontWeight: 'bold',
+      }
+    });
+
+    // 2. State Reset
     this.resetUI();
+
+    // 3. 💣 NUCLEAR OPTION: 3 second baad zabardasti HTML se udao
+    setTimeout(() => {
+      // Jitne bhi toast containers hain, sabko pakdo
+      const elements = document.querySelectorAll('.hot-toast-bar-base-container');
+
+      // Sabko delete kar do
+      elements.forEach(el => el.remove());
+
+    }, 3000); // 3000ms = 3 seconds
   }
 
   resetUI() {
@@ -281,7 +366,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   }
 
   cancelRequest() {
-    const ride = this.activeRide() || this.completedRide(); 
+    const ride = this.activeRide() || this.completedRide();
     if (this.bookingStage() === 'select-ride') {
       this.resetState();
       return;

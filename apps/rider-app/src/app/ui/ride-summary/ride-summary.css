@@ -1,0 +1,10 @@
+/* Existing styles... */
+
+/* 👇 Fix for Hot Toast hidden behind Modals */
+.hot-toast-bar-base-container {
+  z-index: 9999 !important;
+}
+
+.hot-toast-bar-base {
+  z-index: 9999 !important;
+}

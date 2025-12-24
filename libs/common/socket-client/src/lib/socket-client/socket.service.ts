@@ -1,8 +1,7 @@
-import { Injectable, Inject, OnDestroy } from '@angular/core';
+import { Injectable, Inject, OnDestroy, PLATFORM_ID, inject } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common'; // Import Zaroori hai
 import { io, Socket } from 'socket.io-client';
-// ✅ Import Config Token
 import { SOCKET_CONFIG, SocketConfig } from './socket.config';
-// ✅ Import Events Interface
 import { SOCKET_EVENTS } from '@uber-clone/interfaces';
 
 @Injectable({
@@ -10,11 +9,12 @@ import { SOCKET_EVENTS } from '@uber-clone/interfaces';
 })
 export class SocketService implements OnDestroy {
   private socket: Socket;
+  private platformId = inject(PLATFORM_ID); //  SSR Check ke liye
 
-  // 👇 Constructor mein Config Inject karwaya
   constructor(@Inject(SOCKET_CONFIG) private config: SocketConfig) {
     console.log('🔌 Initializing Socket with URL:', config.url);
-    
+
+    // Socket Instance banaya (par abhi connect nahi hoga kyunki autoConnect: false hai)
     this.socket = io(config.url, {
       autoConnect: false,
       ...config.options
@@ -30,6 +30,20 @@ export class SocketService implements OnDestroy {
   }
 
   connect() {
+    // 1. Browser Check (Server par localStorage nahi hota)
+    if (isPlatformBrowser(this.platformId)) {
+
+      // 2. Token Nikalo
+      const token = localStorage.getItem('uber_token');
+
+      // 3. Token ko Socket Auth mein set karo
+      // Yeh sabse zaroori step hai Refresh Persistence ke liye
+      if (token) {
+        this.socket.auth = { token };
+      }
+    }
+
+    // 4. Connect karo
     if (!this.socket.connected) {
       this.socket.connect();
     }
@@ -41,17 +55,14 @@ export class SocketService implements OnDestroy {
     }
   }
 
-  // Type-Safe Emit
   emit(eventName: string, data: any) {
     this.socket.emit(eventName, data);
   }
 
-  // Type-Safe Listen
   listen(eventName: string, callback: (data: any) => void) {
     this.socket.on(eventName, callback);
   }
-  
-  // Clean up
+
   ngOnDestroy() {
     this.disconnect();
   }

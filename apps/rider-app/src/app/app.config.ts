@@ -11,6 +11,7 @@ import {
 } from '@angular/platform-browser';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async'; 
+import { provideHotToastConfig } from '@ngneat/hot-toast';
 import { authInterceptor } from './auth/auth.interceptor';
 import { SOCKET_CONFIG } from '@uber-clone/socket-client';
 import { environment } from '../environments/environment';
@@ -27,6 +28,11 @@ export const appConfig: ApplicationConfig = {
       useValue: { 
         url: environment.rideApiUrl.replace('/api', '') // e.g. http://localhost:3002
       }
-    }
+    },
+    provideHotToastConfig({
+      position: 'bottom-center', // Position set karein
+      stacking: 'vertical',
+      duration: 3000,
+    })
   ],
 };

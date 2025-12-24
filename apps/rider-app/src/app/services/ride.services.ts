@@ -1,5 +1,5 @@
 import { Injectable, PLATFORM_ID, TransferState, inject, makeStateKey } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable, of, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { isPlatformBrowser, isPlatformServer } from '@angular/common';
@@ -22,26 +22,19 @@ export class RideService {
   // 🌐 Dynamic API URL
   get apiUrl() {
     if (isPlatformServer(this.platformId)) {
-      // Server Side (Docker/Internal)
-      // Note: Hum '/api' tak return kar rahe hain, '/rides' method mein lagayenge
       return 'http://localhost:3002/api'; 
     }
-    // Client Side
     return environment.rideApiUrl; // Expected: 'http://localhost:3002/api'
   }
 
   // 1. Get Ride Types (Moto, Auto, etc.)
   getRideTypes() {
-    // Phase A: Check Tiffin (Client Side)
     if (this.transferState.hasKey(RIDE_TYPES_KEY)) {
       const data = this.transferState.get(RIDE_TYPES_KEY, []);
       this.transferState.remove(RIDE_TYPES_KEY);
-      console.log('🏎️ Loaded Ride Config from TransferState');
       return of(data);
     }
 
-    // Phase B: API Call
-    // URL: /api/rides/types
     return this.http.get<any[]>(`${this.apiUrl}/rides/types`).pipe(
       tap(data => {
         if (isPlatformServer(this.platformId)) {
@@ -52,23 +45,10 @@ export class RideService {
   }
 
   // 2. Request A Ride (Create Booking)
-  // ✅ Payload 'any' ho sakta hai, par return type strictly 'Ride' hoga
+  // 🧹 CLEANED: Manual Headers hata diye. Interceptor ab Token khud lagayega.
   requestRide(payload: any): Observable<Ride> {
-    
-    // 🔐 AUTH HEADERS (Uncommented & Fixed)
-    // Ab Backend par AuthGuard hai, toh Token bhejna zaroori hai
-    let headers = new HttpHeaders();
-
-    if (isPlatformBrowser(this.platformId)) {
-      const token = localStorage.getItem('uber_token'); // Key match honi chahiye Auth service se
-      if (token) {
-        headers = headers.set('Authorization', `Bearer ${token}`);
-      }
-    }
-
     // URL: /api/rides/request
-    // Hum headers pass kar rahe hain taaki 401 Error na aaye
-    return this.http.post<Ride>(`${this.apiUrl}/rides/request`, payload, { headers });
+    return this.http.post<Ride>(`${this.apiUrl}/rides/request`, payload);
   }
 
   // 3. Get Initial Location (SSR IP Detect)
@@ -77,12 +57,10 @@ export class RideService {
       const data = this.transferState.get(LOCATION_KEY, null);
       this.transferState.remove(LOCATION_KEY);
       if (data) {
-        console.log('📍 Loaded IP Location:', data.city);
         return of(data);
       }
     }
 
-    // URL: /api/rides/location
     return this.http.get<any>(`${this.apiUrl}/rides/location`).pipe(
       tap(data => {
         if (isPlatformServer(this.platformId)) {
@@ -93,14 +71,16 @@ export class RideService {
   }
 
   getHistory() {
-    // URL: http://localhost:3002/api/rides/history
-    // Return Type: Ride[] (Array of Rides)
     return this.http.get<Ride[]>(`${this.apiUrl}/rides/history`);
   }
 
   cancelRide(rideId: string) {
-    // PATCH /api/rides/:id/cancel
-    // Body empty {} hai kyunki id URL mein hai
     return this.http.patch<Ride>(`${this.apiUrl}/rides/${rideId}/cancel`, {});
+  }
+
+  getCurrentRide() {
+    // GET /api/rides/current-active
+    // Backend par yeh endpoint banana padega jo active ride return kare
+    return this.http.get<Ride | null>(`${this.apiUrl}/rides/current-active`);
   }
 }

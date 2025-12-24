@@ -1,8 +1,8 @@
 <div class="absolute inset-0 z-50 bg-gray-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fade-in">
     
-    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
+    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-slide-up">
       
-      <div class="bg-green-600 p-8 text-center">
+      <div class="bg-green-600 p-8 text-center shrink-0">
         <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
           <span class="text-3xl">✅</span>
         </div>
@@ -10,7 +10,7 @@
         <p class="text-green-100">Hope you had a safe journey.</p>
       </div>
 
-      <div class="p-6">
+      <div class="p-6 overflow-y-auto">
         <div class="text-center mb-8">
           <p class="text-gray-500 text-sm font-medium uppercase tracking-wide">Total Fare</p>
           <h1 class="text-5xl font-bold text-gray-900 mt-2">₹{{ ride?.price }}</h1>
@@ -23,7 +23,7 @@
           </div>
           <div class="flex justify-between p-4 bg-gray-50 rounded-xl">
             <span class="text-gray-600">Distance Charge</span>
-            <span class="font-bold">₹{{ (ride?.price || 0) - 40 + 10 }}</span>
+            <span class="font-bold">₹{{ (ride?.price || 0) - 30 }}</span>
           </div>
           <div class="flex justify-between p-4 bg-green-50 text-green-700 rounded-xl border border-green-100">
             <span class="font-medium">Discount</span>
@@ -39,7 +39,7 @@
         </div>
 
         <button (click)="onSubmit()" 
-          class="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-transform active:scale-95">
+          class="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-transform active:scale-95 mb-4">
           Pay & Close
         </button>
       </div>

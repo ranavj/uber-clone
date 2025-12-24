@@ -1,14 +1,12 @@
 import { Component, inject, PLATFORM_ID, signal, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { UiButton, UiMapComponent } from '@uber/ui'; 
 import { isPlatformBrowser } from '@angular/common';
-import { environment } from '../../environments/environment'; 
+import { environment } from '../../environments/environment';
 
-// ✅ 1. Import Shared Socket Library (Local service hataya)
+// Shared Libs
+import { UiButton, UiMapComponent, MapMarkerConfig } from '@uber/ui';
 import { SocketService } from '@uber-clone/socket-client';
-
-// ✅ 2. Import Shared Interfaces & Constants
 import { Ride, RideStatus, SOCKET_EVENTS } from '@uber-clone/interfaces';
 
 declare var google: any;
@@ -22,25 +20,26 @@ declare var google: any;
 export class App implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private platformId = inject(PLATFORM_ID);
-  
-  // ✅ Inject Shared Service
   private socketService = inject(SocketService);
-  
-  private apiUrl = environment.rideApiUrl; 
+  private apiUrl = environment.rideApiUrl;
 
   isConnected = signal(false);
-
-  // ✅ 3. Type Safety Applied (No more 'any')
   incomingRide = signal<Ride | null>(null);
   activeRide = signal<Ride | null>(null);
-  
-  // ⚠️ Ensure this ID matches your DB Driver ID
-  driverId = '4e90f50f-a7b7-4309-862b-959cf28a71ac'; 
+
+  // 🗺️ MAP SIGNALS
+  center = signal<google.maps.LatLngLiteral>({ lat: 28.6139, lng: 77.2090 });
+  markers = signal<MapMarkerConfig[]>([]);
+  directionsResult = signal<google.maps.DirectionsResult | null>(null);
+
+  // Driver ID (Hardcoded for simulation)
+  driverId = '4e90f50f-a7b7-4309-862b-959cf28a71ac';
 
   // Simulation Vars
   private simulationInterval: any;
-  private routePath: any[] = []; 
-  private routeIndex = 0; 
+  private routePath: any[] = [];
+  private routeIndex = 0;
+  private prevPos: google.maps.LatLngLiteral | null = null;
 
   get rideStatus() {
     return this.activeRide()?.status || '';
@@ -48,18 +47,76 @@ export class App implements OnInit, OnDestroy {
 
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
-      // ✅ 4. Connect via Library
-      this.socketService.connect();
-      this.setupSocketListeners();
+      // ✅ 1. Token Check (Refresh Fix)
+      const token = localStorage.getItem('uber_token');
+
+      if (!token) {
+        // 🚨 Token missing? Get one from Dev API
+        console.log('🔑 No Token found. Auto-logging in as Driver...');
+        this.devLoginAndStart();
+      } else {
+        // ✅ Token found? Start normally
+        this.startApp();
+      }
+    }
+  }
+
+  // 🛠️ AUTO-LOGIN LOGIC
+  devLoginAndStart() {
+    this.http.get<{ token: string }>(`${this.apiUrl}/rides/dev/token/${this.driverId}`).subscribe({
+      next: (res) => {
+        console.log('✅ Dev Token Received!');
+        localStorage.setItem('uber_token', res.token); // Save Token
+        this.startApp(); // Now Start
+      },
+      error: (err) => console.error('❌ Dev Login Failed:', err)
+    });
+  }
+
+  // 🚀 MAIN APP STARTUP
+  startApp() {
+    this.getCurrentLocation();
+    this.socketService.connect(); // Connects using the saved token
+    this.setupSocketListeners();
+    this.checkActiveRide(); // No more 401 error!
+  }
+
+  // 🔄 REFRESH RECOVERY LOGIC (Driver)
+  checkActiveRide() {
+    this.http.get<Ride>(`${this.apiUrl}/rides/current-active`).subscribe({
+      next: (ride) => {
+        if (ride && ride.status !== RideStatus.COMPLETED && ride.status !== RideStatus.CANCELLED) {
+          console.log('♻️ Restoring Driver Session:', ride.id);
+
+          this.activeRide.set(ride);
+
+          if (ride.status === RideStatus.ACCEPTED ||
+            ride.status === RideStatus.ARRIVED ||
+            ride.status === RideStatus.IN_PROGRESS) {
+
+            // Restore Navigation
+            this.calculateAndStartSimulation(ride);
+          }
+        }
+      },
+      error: (err) => console.log('No active ride found for driver', err)
+    });
+  }
+
+  getCurrentLocation() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        this.center.set(myPos);
+        this.updateDriverMarker(myPos);
+      });
     }
   }
 
   private setupSocketListeners() {
     this.isConnected.set(true);
-
-    // ✅ 5. Listen using Constant (Spelling mistake proof)
     this.socketService.listen(SOCKET_EVENTS.NEW_RIDE_AVAILABLE, (ride: Ride) => {
-      console.log('🔔 New Ride Alert via Service:', ride);
+      console.log('🔔 New Ride Alert:', ride);
       if (!this.activeRide()) {
         this.incomingRide.set(ride);
       }
@@ -70,21 +127,15 @@ export class App implements OnInit, OnDestroy {
     const ride = this.incomingRide();
     if (!ride) return;
 
-    // ✅ Added <Ride> generic for type safety
     this.http.patch<Ride>(`${this.apiUrl}/rides/${ride.id}/accept`, {
       driverId: this.driverId
     }).subscribe({
-      next: (updatedRide) => { 
-        console.log('Ride Accepted:', updatedRide);
+      next: (updatedRide) => {
         this.incomingRide.set(null);
-        this.activeRide.set(updatedRide); 
-
-        alert('Navigation Started! 🏁');
+        this.activeRide.set(updatedRide);
+        this.calculateAndStartSimulation(updatedRide);
       },
-      error: (err) => {
-        console.error(err);
-        alert('Error accepting ride');
-      }
+      error: (err) => console.error(err)
     });
   }
 
@@ -97,8 +148,6 @@ export class App implements OnInit, OnDestroy {
     if (!ride) return;
 
     let nextStatus: RideStatus | null = null;
-
-    // ✅ 6. Logic: Using Enum instead of strings
     switch (ride.status) {
       case RideStatus.ACCEPTED: nextStatus = RideStatus.ARRIVED; break;
       case RideStatus.ARRIVED: nextStatus = RideStatus.IN_PROGRESS; break;
@@ -114,33 +163,31 @@ export class App implements OnInit, OnDestroy {
       next: (updatedRide) => {
         this.activeRide.set(updatedRide);
 
-        // 🚦 START SIMULATION
         if (nextStatus === RideStatus.IN_PROGRESS) {
-          this.calculateAndStartSimulation(ride);
+          if (!this.simulationInterval) {
+            this.calculateAndStartSimulation(ride);
+          }
         }
-        
-        // 🏁 STOP SIMULATION
+
         if (nextStatus === RideStatus.COMPLETED) {
           this.stopSimulation();
+          this.directionsResult.set(null);
+          this.markers.set([]);
           alert(`Trip Finished! Fare: ₹${ride.price}`);
           this.activeRide.set(null);
+          this.getCurrentLocation();
         }
       },
       error: (err) => console.error(err)
     });
   }
 
-  // 🗺️ Google Maps Route Logic
+  // 🗺️ Visual + Simulation Logic
   calculateAndStartSimulation(ride: Ride) {
-    console.log('🗺️ Calculating Route on Road...');
-    
-    if (typeof google === 'undefined') {
-      console.error('Google Maps not loaded');
-      return;
-    }
+    if (typeof google === 'undefined') return;
 
     const directionsService = new google.maps.DirectionsService();
-    
+
     const request = {
       origin: { lat: ride.pickupLat, lng: ride.pickupLng },
       destination: { lat: ride.dropLat, lng: ride.dropLng },
@@ -149,34 +196,32 @@ export class App implements OnInit, OnDestroy {
 
     directionsService.route(request, (result: any, status: any) => {
       if (status === 'OK') {
+        this.directionsResult.set(result);
         this.routePath = result.routes[0].overview_path;
         this.routeIndex = 0;
-        
-        console.log(`🛣️ Route Found with ${this.routePath.length} points`);
         this.startRoadSimulation(ride.id);
-      } else {
-        console.error('Directions request failed:', status);
       }
     });
   }
 
-  // 🏎️ Simulation Engine
   startRoadSimulation(rideId: string) {
-    this.stopSimulation(); 
-    const intervalTime = 500; 
+    this.stopSimulation();
+    const intervalTime = 1000;
 
     this.simulationInterval = setInterval(() => {
       if (this.routeIndex >= this.routePath.length) {
         this.stopSimulation();
-        console.log('🏁 Reached Destination (Simulation End)');
         return;
       }
 
       const point = this.routePath[this.routeIndex];
-      const lat = point.lat();
-      const lng = point.lng();
+      const lat = typeof point.lat === 'function' ? point.lat() : point.lat;
+      const lng = typeof point.lng === 'function' ? point.lng() : point.lng;
+      const pos = { lat, lng };
 
-      // ✅ 7. Emit using Constant (Type Safe Emit)
+      this.updateDriverMarker(pos);
+      this.center.set(pos);
+
       this.socketService.emit(SOCKET_EVENTS.UPDATE_DRIVER_LOCATION, {
         rideId: rideId,
         lat: lat,
@@ -185,8 +230,37 @@ export class App implements OnInit, OnDestroy {
       });
 
       this.routeIndex++;
-
     }, intervalTime);
+  }
+
+  updateDriverMarker(pos: google.maps.LatLngLiteral) {
+    if (!pos || !pos.lat || !pos.lng) return;
+    if (typeof google === 'undefined') return;
+
+    let heading = 0;
+    if (this.prevPos && google.maps.geometry) {
+      heading = google.maps.geometry.spherical.computeHeading(this.prevPos, pos);
+    }
+    this.prevPos = pos;
+
+    const driverIcon = {
+      path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+      scale: 6,
+      fillColor: "#000000",
+      fillOpacity: 1,
+      strokeWeight: 2,
+      strokeColor: "#FFFFFF",
+      rotation: heading,
+    };
+
+    this.markers.set([{
+      position: pos,
+      title: 'Me',
+      options: {
+        icon: driverIcon,
+        zIndex: 9999
+      }
+    }]);
   }
 
   stopSimulation() {
@@ -199,7 +273,6 @@ export class App implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    // Cleanup
     this.socketService.disconnect();
     this.stopSimulation();
   }

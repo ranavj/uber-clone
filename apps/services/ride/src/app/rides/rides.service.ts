@@ -62,7 +62,7 @@ export class RidesService {
   // 📜 GET HISTORY: User ki saari rides layega
   async getMyRides(userId: string) {
     return this.prisma.ride.findMany({
-      where: { 
+      where: {
         riderId: userId // Sirf is user ki rides
       },
       include: {
@@ -96,5 +96,16 @@ export class RidesService {
     this.ridesGateway.notifyRideStatus(updatedRide);
 
     return updatedRide;
+  }
+
+  // ride.service.ts
+  async findActiveRideForUser(userId: string) {
+    return this.prisma.ride.findFirst({
+      where: {
+        OR: [{ riderId: userId }, { driverId: userId }],
+        status: { not: 'COMPLETED' } // Sirf active rides
+      },
+      include: { driver: true, rider: true } // Data populate karo
+    });
   }
 }

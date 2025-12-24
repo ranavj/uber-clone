@@ -4,3 +4,62 @@
 
 /* You can add global styles to this file, and also import other style files */
 html, body { height: 100%; margin: 0; font-family: sans-serif; }
+/* 🔥 FORCED FIX FOR TOAST UI 🔥 */
+
+/* 1. Container ko fix karo: Screen ke upar tairna chahiye */
+.hot-toast-bar-base-container {
+  position: fixed !important;
+  z-index: 99999 !important; /* Sabse upar */
+  top: auto !important;
+  bottom: 20px !important;   /* Neeche se 20px upar */
+  left: 50% !important;      /* Center mein */
+  transform: translateX(-50%) !important; /* Perfect Center */
+  pointer-events: none;      /* Taaki peeche click kar sakein */
+  
+  /* Layout reset */
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  align-items: center !important;
+  width: auto !important;    /* Full width nahi chahiye */
+  height: auto !important;
+}
+
+/* 2. Toast Box (Green Bubble) ka design */
+.hot-toast-bar-base {
+  pointer-events: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  
+  /* Size & Shape */
+  min-width: 250px !important;
+  padding: 12px 24px !important;
+  border-radius: 9999px !important; /* Pill Shape */
+  background: white !important;     /* Safed background */
+  color: #000 !important;           /* Black text */
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2) !important;
+  
+  /* Reset Margins */
+  margin: 5px 0 !important;
+}
+
+/* 3. Message Text Style */
+.hot-toast-message {
+  font-weight: 600 !important;
+  font-size: 14px !important;
+}
+
+
+.hot-toast-animation-leave {
+  animation: fade-out 0.5s forwards !important;
+}
+
+@keyframes fade-out {
+  0% { 
+    opacity: 1; 
+  }
+  100% { 
+    opacity: 0; 
+    visibility: hidden; /* Ensure it clicks through */
+  }
+}
