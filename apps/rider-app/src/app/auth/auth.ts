@@ -4,14 +4,15 @@ import { Router } from '@angular/router';
 import { tap } from 'rxjs';
 import { isPlatformBrowser } from '@angular/common';
 import { environment } from '../../environments/environment';
+import { User } from '@uber-clone/interfaces';
 
 // ✅ Interfaces (Type Safety ke liye)
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  role: string;
-}
+// interface User {
+//   id: string;
+//   email: string;
+//   firstName: string;
+//   role: string;
+// }
 
 interface AuthResponse {
   access_token: string;

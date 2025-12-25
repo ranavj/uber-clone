@@ -46,7 +46,8 @@
         "apps/services/api-gateway-e2e/**/*",
         "apps/services/auth-e2e/**/*",
         "apps/services/ride-e2e/**/*",
-        "apps/services/tracking-e2e/**/*"
+        "apps/services/tracking-e2e/**/*",
+        "apps/services/payment-e2e/**/*"
       ]
     },
     {

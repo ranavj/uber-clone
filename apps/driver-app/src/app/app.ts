@@ -1,5 +1,5 @@
 import { Component, inject, PLATFORM_ID, signal, OnInit, OnDestroy, effect } from '@angular/core'; // ✅ Added effect
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { environment } from '../../environments/environment';
@@ -7,11 +7,12 @@ import { environment } from '../../environments/environment';
 import { UiButton, UiMapComponent, MapMarkerConfig } from '@uber/ui';
 import { SocketService } from '@uber-clone/socket-client';
 import { Ride, RideStatus, SOCKET_EVENTS } from '@uber-clone/interfaces';
+import { DriverSidebar } from './ui/driver-sidebar/driver-sidebar';
 
 declare var google: any;
 
 @Component({
-  imports: [RouterModule, UiButton, UiMapComponent],
+  imports: [RouterModule, UiButton, UiMapComponent, DriverSidebar],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -21,7 +22,7 @@ export class App implements OnInit, OnDestroy {
   private platformId = inject(PLATFORM_ID);
   private socketService = inject(SocketService);
   private apiUrl = environment.rideApiUrl;
-
+  private router = inject(Router);
   isConnected = signal(false);
   incomingRide = signal<Ride | null>(null);
   activeRide = signal<Ride | null>(null);
@@ -30,7 +31,7 @@ export class App implements OnInit, OnDestroy {
   center = signal<google.maps.LatLngLiteral>({ lat: 28.6139, lng: 77.2090 });
   markers = signal<MapMarkerConfig[]>([]);
   directionsResult = signal<google.maps.DirectionsResult | null>(null);
-
+  isMenuOpen = signal(false);
   // ✅ NEW: Central Position Signal (The Source of Truth)
   driverPosition = signal<google.maps.LatLngLiteral | null>(null);
 
@@ -70,6 +71,25 @@ export class App implements OnInit, OnDestroy {
     }
   }
 
+  // ✅ 2. TOGGLE MENU
+  toggleMenu() {
+    this.isMenuOpen.update(val => !val);
+  }
+
+  // ✅ 3. LOGOUT LOGIC
+  logout() {
+    // Token saaf karo
+    localStorage.removeItem('uber_token');
+    
+    // Simulation roko (background mein na chalta rahe)
+    this.stopSimulation();
+    
+    // Socket disconnect karo
+    this.socketService.disconnect();
+
+    // Login page par bhejo
+    this.router.navigate(['/login']);
+  }
   devLoginAndStart() {
     this.http.get<{ token: string }>(`${this.apiUrl}/rides/dev/token/${this.driverId}`).subscribe({
       next: (res) => {

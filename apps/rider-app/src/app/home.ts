@@ -1,7 +1,7 @@
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { AfterViewInit, Component, ElementRef, inject, OnInit, OnDestroy, PLATFORM_ID, signal, viewChild, effect } from '@angular/core'; // ✅ Added viewChild, effect
 import { toSignal } from '@angular/core/rxjs-interop'; // ✅ Added toSignal
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 
 // Services
 import { RideService } from './services/ride.services';
@@ -9,7 +9,7 @@ import { Auth } from './services/auth';
 import { SocketService } from '@uber-clone/socket-client';
 
 // UI Components
-import { MapMarkerConfig, UiButton, UiMapComponent } from '@uber/ui';
+import { MapMarkerConfig, UiMapComponent } from '@uber/ui';
 import { Meta, Title } from '@angular/platform-browser';
 
 // Shared Interfaces
@@ -21,6 +21,7 @@ import { RideSummary } from './ui/ride-summary/ride-summary';
 import { SearchingLoader } from './ui/searching-loader/searching-loader';
 import { TripDetails } from './ui/trip-details/trip-details';
 import { HotToastService } from '@ngneat/hot-toast';
+import { RiderSidebar } from './ui/rider-sidebar/rider-sidebar';
 
 interface RideOption {
   id: string;
@@ -33,7 +34,7 @@ interface RideOption {
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, UiMapComponent, UiButton, RideSelection, RideSummary, SearchingLoader, TripDetails],
+  imports: [CommonModule, UiMapComponent, RiderSidebar, RideSelection, RideSummary, SearchingLoader, TripDetails, RouterModule],
   templateUrl: './home.html',
   styleUrl: './home.css',
 })
@@ -46,7 +47,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   private socketService = inject(SocketService);
   private meta = inject(Meta);
   private title = inject(Title);
-
+  isMenuOpen = signal(false);
   // ✅ NEW INJECTIONS
   private mapUtils = inject(MapUtils);
   private animator = inject(MarkerAnimation);
@@ -410,6 +411,16 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     this.activeRide.set(null);
     this.completedRide.set(null);
     this.assignedDriver.set(null);
+  }
+
+  toggleMenu() {
+    this.isMenuOpen.update(val => !val);
+  }
+  
+  // Logout Function (Basic)
+  logout() {
+    localStorage.removeItem('uber_token');
+    this.router.navigate(['/login']);
   }
 
   ngOnDestroy() {

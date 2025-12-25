@@ -1,0 +1,23 @@
+@if (isOpen()) {
+<div (click)="close.emit()" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-fade-in"
+    data-testid="sidebar-backdrop">
+</div>
+}
+
+<div class="fixed top-0 left-0 h-full w-80 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out"
+    [class.translate-x-0]="isOpen()" [class.-translate-x-full]="!isOpen()">
+
+    @if (isOpen()) {
+    <button (click)="close.emit()"
+        class="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+    </button>
+    }
+
+    <div class="h-full overflow-y-auto">
+        <ng-content></ng-content>
+    </div>
+
+</div>

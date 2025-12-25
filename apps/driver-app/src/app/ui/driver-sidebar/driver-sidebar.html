@@ -1,0 +1,48 @@
+<uber-sidebar [isOpen]="isOpen()" (close)="close.emit()">
+    
+    <div class="bg-black text-white p-6 pt-10">
+       <div class="flex items-center gap-4">
+         <div class="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center text-3xl border-2 border-white shadow-lg">
+           👨‍✈️
+         </div>
+         <div>
+           <h2 class="text-lg font-bold">Vikram Driver</h2>
+           <p class="text-gray-400 text-xs mt-1">DL 9C AB 1234</p>
+           <p class="text-gray-400 text-xs">Maruti Swift Dzire</p>
+         </div>
+       </div>
+       
+       <div class="flex mt-6 gap-3">
+         <div class="bg-gray-900 rounded-xl p-3 flex-1 text-center border border-gray-800">
+            <p class="text-[10px] text-gray-400 uppercase tracking-wider">Rating</p>
+            <p class="font-bold text-yellow-400 text-lg">4.9 ★</p>
+         </div>
+         <div class="bg-gray-900 rounded-xl p-3 flex-1 text-center border border-gray-800">
+            <p class="text-[10px] text-gray-400 uppercase tracking-wider">Today</p>
+            <p class="font-bold text-green-400 text-lg">₹850</p>
+         </div>
+       </div>
+    </div>
+
+    <div class="py-4 space-y-1">
+       <a routerLink="/earnings" class="block px-6 py-4 hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-4 transition-colors">
+         <span class="text-xl">💰</span> Earnings
+       </a>
+       <a routerLink="/vehicle" class="block px-6 py-4 hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-4 transition-colors">
+         <span class="text-xl">🚗</span> Vehicle Details
+       </a>
+       <a routerLink="/documents" class="block px-6 py-4 hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-4 transition-colors">
+         <span class="text-xl">📄</span> Documents
+       </a>
+       <a routerLink="/settings" class="block px-6 py-4 hover:bg-gray-50 font-medium text-gray-700 flex items-center gap-4 transition-colors">
+         <span class="text-xl">⚙️</span> Settings
+       </a>
+    </div>
+
+    <div class="border-t border-gray-100 p-4 mt-auto">
+       <button (click)="logout.emit()" class="w-full flex items-center gap-3 px-4 py-3 text-red-600 font-bold hover:bg-red-50 rounded-xl transition-colors">
+         <span>🛑</span> Go Offline & Logout
+       </button>
+    </div>
+
+</uber-sidebar>

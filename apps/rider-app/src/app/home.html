@@ -1,54 +1,49 @@
 <div class="relative h-screen w-full overflow-hidden">
 
   @defer (on idle) {
-    <uber-map height="100vh" width="100%" 
-      [center]="center()" 
-      [markers]="markers()"
-      [directions]="directionsResult()">
-    </uber-map>
+  <uber-map height="100vh" width="100%" [center]="center()" [markers]="markers()" [directions]="directionsResult()">
+  </uber-map>
   } @placeholder {
-    <div class="h-full w-full bg-gray-100 flex flex-col items-center justify-center animate-pulse">
-      <div class="w-12 h-12 bg-gray-300 rounded-full mb-4"></div>
-      <p class="text-gray-400 font-medium">Loading Map...</p>
-    </div>
+  <div class="h-full w-full bg-gray-100 flex flex-col items-center justify-center animate-pulse">
+    <div class="w-12 h-12 bg-gray-300 rounded-full mb-4"></div>
+    <p class="text-gray-400 font-medium">Loading Map...</p>
+  </div>
   }
 
-  @if (rideOptions().length === 0) {
-  <div class="absolute top-10 left-4 right-4 z-10 animate-fade-in">
-    <div class="bg-white p-4 rounded-xl shadow-lg flex items-center gap-3">
-      <div class="h-3 w-3 bg-black rounded-full"></div>
+  @if (rideOptions().length === 0 && bookingStage() === 'select-ride') {
+  <div class="absolute top-6 left-4 right-4 z-10 animate-fade-in">
+    <div class="bg-white p-2 rounded-full shadow-xl flex items-center gap-2 pr-6">
+      <button (click)="toggleMenu()" class="p-3 rounded-full hover:bg-gray-100 transition-colors text-gray-700">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+      </button>
+      <div class="h-2 w-2 bg-black rounded-full shrink-0 ml-1"></div>
       <input #searchInput type="text" placeholder="Where to?"
-        class="w-full text-lg font-semibold outline-none bg-transparent placeholder:text-gray-400" />
+        class="w-full text-lg font-semibold outline-none bg-transparent placeholder:text-gray-400 h-10" />
     </div>
   </div>
   }
 
+  <app-rider-sidebar [isOpen]="isMenuOpen()" (close)="isMenuOpen.set(false)" (logout)="logout()">
+  </app-rider-sidebar>
+
   @if (bookingStage() === 'select-ride' && rideOptions().length > 0) {
-    <app-ride-selection 
-      [options]="rideOptions()" 
-      (select)="requestRide($event)">
-    </app-ride-selection>
+  <app-ride-selection [options]="rideOptions()" (select)="requestRide($event)"></app-ride-selection>
   }
 
   @if (bookingStage() === 'searching') {
-    <app-searching-loader 
-      (cancel)="cancelRequest()">
-    </app-searching-loader>
+  <app-searching-loader (cancel)="cancelRequest()"></app-searching-loader>
   }
 
   @if ((bookingStage() === 'confirmed' || bookingStage() === 'trip-started') && assignedDriver()) {
-    <app-trip-details 
-      [driver]="assignedDriver()"
-      [status]="bookingStage()"
-      (cancel)="cancelRequest()"
-      (callDriver)="resetUI()"> </app-trip-details>
+  <app-trip-details [driver]="assignedDriver()" [status]="bookingStage()" (cancel)="cancelRequest()"
+    (callDriver)="resetUI()">
+  </app-trip-details>
   }
 
   @if (bookingStage() === 'summary' && completedRide(); as ride) {
-    <app-ride-summary 
-      [ride]="ride" 
-      (close)="submitRating($event)">
-    </app-ride-summary>
+  <app-ride-summary [ride]="ride" (close)="submitRating($event)"></app-ride-summary>
   }
 
 </div>

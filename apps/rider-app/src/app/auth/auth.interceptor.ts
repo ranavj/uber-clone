@@ -42,7 +42,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         // Agar browser hai toh safayi karo
         if (isPlatformBrowser(platformId)) {
           localStorage.removeItem('uber_token');
-          localStorage.removeItem('user');
+          localStorage.removeItem('uber_user');
         }
         
         toast.error('Session Expired. Please Login again.'); // Toast dikhaya
