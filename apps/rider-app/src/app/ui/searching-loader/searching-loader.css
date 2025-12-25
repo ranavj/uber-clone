@@ -1,0 +1,49 @@
+/* 📡 Radar Effect (Dheere se failna aur gayab hona) */
+@keyframes radar-ping {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    75%, 100% {
+        transform: scale(1.6);
+        opacity: 0;
+    }
+}
+
+.animate-radar-ping {
+    animation: radar-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* 🚗 Car Halka sa Bounce karegi */
+@keyframes car-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+
+.animate-car-bounce {
+    animation: car-bounce 2s ease-in-out infinite;
+}
+
+/* 📏 Progress Bar (Left se Right smooth slide) */
+@keyframes slide-indeterminate {
+    0% {
+        left: -35%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+.animate-slide-indeterminate {
+    animation: slide-indeterminate 1.5s infinite linear;
+}
+
+/* ⬆️ Slide Up Entry Animation */
+@keyframes slide-up {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+    animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

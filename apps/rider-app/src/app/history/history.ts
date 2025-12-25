@@ -1,7 +1,9 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { Ride } from '@uber-clone/interfaces';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { catchError, of, startWith, Subject, switchMap, concat, delay } from 'rxjs'; // ✅ Added 'concat'
+
 import { RideService } from '../services/ride.services';
 
 @Component({
@@ -10,25 +12,45 @@ import { RideService } from '../services/ride.services';
   imports: [CommonModule, RouterModule],
   templateUrl: './history.html',
   styleUrl: './history.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class History implements OnInit {
+export class History {
   private rideService = inject(RideService);
-  
-  // Rides ka data yahan aayega
-  rides = signal<Ride[]>([]);
-  isLoading = signal(true);
 
-  ngOnInit() {
-    this.rideService.getHistory().subscribe({
-      next: (data) => {
-        console.log('📜 History Data:', data);
-        this.rides.set(data);
-        this.isLoading.set(false);
-      },
-      error: (err) => {
-        console.error(err);
-        this.isLoading.set(false);
-      }
-    });
+  private retryTrigger$ = new Subject<void>();
+
+  rides = toSignal(
+    this.retryTrigger$.pipe(
+      startWith(void 0),
+      switchMap(() =>
+
+        // TRICK: Retry dabate hi pehle 'undefined' (Loading) bhejo, phir API call karo
+        concat(
+          of(undefined).pipe(delay(100)),
+
+          this.rideService.getHistory().pipe(
+            catchError(err => {
+              console.error('History API Failed:', err);
+              return of(null); // Error State
+            })
+          )
+        )
+      )
+    ),
+    { initialValue: undefined }
+  );
+
+  onRetry() {
+    this.retryTrigger$.next();
+  }
+
+  // Status Color Helper
+  getStatusClass(status: string): string {
+    switch (status) {
+      case 'COMPLETED': return 'bg-green-100 text-green-700 border-green-200';
+      case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse';
+      case 'CANCELLED': return 'bg-red-50 text-red-600 border-red-100';
+      default: return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
   }
 }

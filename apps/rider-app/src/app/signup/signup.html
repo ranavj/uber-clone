@@ -3,46 +3,99 @@
   <uber-card 
     title="Create Account" 
     description="Join Uber to start riding"
-    class="w-full max-w-md"
+    class="w-full max-w-md animate-fade-in"
   >
     
-    <form [formGroup]="signupForm" (ngSubmit)="onSubmit()" class="mt-8 space-y-4">
+    <form [formGroup]="signupForm" (ngSubmit)="onSubmit()" class="mt-8 space-y-5">
       
       <div class="grid grid-cols-2 gap-4">
+        
         <div class="space-y-1">
-          <label class="text-sm font-medium">First Name</label>
-          <input uberInput formControlName="firstName" placeholder="Rahul" />
+          <label class="text-sm font-medium text-gray-700">First Name</label>
+          <input uberInput 
+            formControlName="firstName" 
+            placeholder="Rahul" 
+            autocomplete="given-name"
+            [class.border-red-500]="signupForm.controls.firstName.invalid && signupForm.controls.firstName.touched"
+          />
+          @if (signupForm.controls.firstName.invalid && signupForm.controls.firstName.touched) {
+            <p class="text-xs text-red-500 animate-slide-up">First name is required</p>
+          }
         </div>
+
         <div class="space-y-1">
-          <label class="text-sm font-medium">Last Name</label>
-          <input uberInput formControlName="lastName" placeholder="Sharma" />
+          <label class="text-sm font-medium text-gray-700">Last Name</label>
+          <input uberInput 
+            formControlName="lastName" 
+            placeholder="Sharma" 
+            autocomplete="family-name"
+            [class.border-red-500]="signupForm.controls.lastName.invalid && signupForm.controls.lastName.touched"
+          />
+          @if (signupForm.controls.lastName.invalid && signupForm.controls.lastName.touched) {
+            <p class="text-xs text-red-500 animate-slide-up">Last name is required</p>
+          }
         </div>
       </div>
 
       <div class="space-y-1">
-        <label class="text-sm font-medium">Email</label>
-        <input uberInput type="email" formControlName="email" placeholder="name@example.com" />
+        <label class="text-sm font-medium text-gray-700">Email</label>
+        <input uberInput 
+          type="email" 
+          formControlName="email" 
+          placeholder="name@example.com" 
+          autocomplete="email"
+          [class.border-red-500]="signupForm.controls.email.invalid && signupForm.controls.email.touched"
+        />
+        @if (signupForm.controls.email.invalid && signupForm.controls.email.touched) {
+          <p class="text-xs text-red-500 animate-slide-up">
+            @if (signupForm.controls.email.hasError('required')) { Email is required }
+            @else { Invalid email address }
+          </p>
+        }
       </div>
 
       <div class="space-y-1">
-        <label class="text-sm font-medium">Password</label>
-        <input uberInput type="password" formControlName="password" placeholder="••••••••" />
-        <p class="text-xs text-gray-500">Must be at least 6 characters</p>
+        <label class="text-sm font-medium text-gray-700">Password</label>
+        <input uberInput 
+          type="password" 
+          formControlName="password" 
+          placeholder="••••••••" 
+          autocomplete="new-password"
+          [class.border-red-500]="signupForm.controls.password.invalid && signupForm.controls.password.touched"
+        />
+        
+        @if (signupForm.controls.password.invalid && signupForm.controls.password.touched) {
+          <p class="text-xs text-red-500 animate-slide-up">Password must be at least 6 characters</p>
+        } @else {
+          <p class="text-xs text-gray-500">Must be at least 6 characters</p>
+        }
       </div>
 
-      <div *ngIf="errorMessage()" class="p-3 rounded-md bg-red-50 text-red-600 text-sm border border-red-200">
-        {{ errorMessage() }}
-      </div>
+      @if (errorMessage()) {
+        <div class="p-3 rounded-md bg-red-50 text-red-600 text-sm border border-red-200 flex items-center gap-2 animate-shake">
+          <span>⚠️</span> {{ errorMessage() }}
+        </div>
+      }
 
       <uber-button class="w-full" size="lg" type="submit" [disabled]="isLoading()">
-        {{ isLoading() ? 'Creating Account...' : 'Sign Up' }}
+        @if (isLoading()) {
+          <span class="flex items-center gap-2">
+            <svg class="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Creating Account...
+          </span>
+        } @else {
+          Sign Up
+        }
       </uber-button>
 
     </form>
     
     <div class="mt-6 text-center text-sm text-gray-600">
       Already have an account? 
-      <a routerLink="/" class="font-medium text-black hover:underline cursor-pointer">Login</a>
+      <a routerLink="/login" class="font-bold text-black hover:underline cursor-pointer transition-colors">Login</a>
     </div>
 
   </uber-card>

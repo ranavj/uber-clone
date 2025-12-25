@@ -1,12 +1,12 @@
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, inject, OnInit, OnDestroy, PLATFORM_ID, signal, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, inject, OnInit, OnDestroy, PLATFORM_ID, signal, viewChild, effect } from '@angular/core'; // ✅ Added viewChild, effect
+import { toSignal } from '@angular/core/rxjs-interop'; // ✅ Added toSignal
 import { Router } from '@angular/router';
 
 // Services
 import { RideService } from './services/ride.services';
 import { Auth } from './services/auth';
 import { SocketService } from '@uber-clone/socket-client';
-// ✅ NEW: Injected Services for Logic Separation
 
 // UI Components
 import { MapMarkerConfig, UiButton, UiMapComponent } from '@uber/ui';
@@ -51,7 +51,9 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   private mapUtils = inject(MapUtils);
   private animator = inject(MarkerAnimation);
   private toast = inject(HotToastService);
-  @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
+
+  // ✅ MODERN VIEW CHILD (Replaces @ViewChild)
+  searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
   // --- SIGNALS ---
   center = signal<google.maps.LatLngLiteral>({ lat: 28.6139, lng: 77.2090 });
@@ -65,6 +67,12 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   completedRide = signal<Ride | null>(null);
   activeRide = signal<Ride | null>(null);
 
+  // ✅ NEW: Signal for Driver Location (Used in Effect)
+  driverLocation = signal<google.maps.LatLngLiteral | null>(null);
+
+  // ✅ MODERN API DATA FETCHING (Replaces manual subscription)
+  rideConfigs = toSignal(this.rideService.getRideTypes(), { initialValue: [] });
+
   // Class Variables
   sourceLocation: google.maps.LatLngLiteral | null = null;
   currentCarPos: google.maps.LatLngLiteral | null = null;
@@ -72,7 +80,26 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     url: 'https://cdn-icons-png.flaticon.com/512/11104/11104431.png',
     scaledSize: { width: 40, height: 40, equals: () => false } as google.maps.Size,
   };
-  rideConfigs: any[] = [];
+
+  constructor() {
+    // ✅ NEW: Effect to handle Map Animation automatically
+    effect(() => {
+      const newPos = this.driverLocation();
+      if (newPos) {
+        if (!this.currentCarPos) {
+          // First time location update
+          this.currentCarPos = newPos;
+          this.updateDriverMarker(newPos);
+        } else {
+          // Subsequent updates - Animate smoothly
+          this.animator.animateMarker(this.currentCarPos, newPos, 1000, (updatedPos) => {
+            this.updateDriverMarker(updatedPos);
+            this.currentCarPos = updatedPos;
+          });
+        }
+      }
+    });
+  }
 
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
@@ -81,8 +108,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
       this.checkForActiveRide();
     }
 
-
-    this.rideService.getRideTypes().subscribe(configs => this.rideConfigs = configs);
+    // ❌ Removed manual subscription for rideConfigs (Handled by toSignal now)
 
     this.rideService.getInitialLocation().subscribe(serverLoc => {
       if (serverLoc && serverLoc.lat && serverLoc.lng) {
@@ -95,7 +121,11 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
-    if (isPlatformBrowser(this.platformId)) this.initAutocomplete();
+    if (isPlatformBrowser(this.platformId)) {
+      // ✅ Using Signal to access ElementRef
+      const inputEl = this.searchInput()?.nativeElement;
+      if (inputEl) this.initAutocomplete(inputEl);
+    }
   }
 
   // 🔄 REFRESH RECOVERY
@@ -185,19 +215,8 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     // 2. Live Tracking (Driver Location)
     const locationEvent = SOCKET_EVENTS.DRIVER_LOCATION_UPDATE(rideId);
     this.socketService.listen(locationEvent, (location: any) => {
-      const newPos = { lat: location.lat, lng: location.lng };
-
-      if (!this.currentCarPos) {
-        // Pehli baar location aayi (Direct set karo)
-        this.currentCarPos = newPos;
-        this.updateDriverMarker(newPos);
-      } else {
-        // Pehle se car thi (Smooth Animate karo)
-        this.animator.animateMarker(this.currentCarPos, newPos, 1000, (updatedPos) => {
-          this.updateDriverMarker(updatedPos);
-          this.currentCarPos = updatedPos;
-        });
-      }
+      // ✅ Just update the signal. The effect() in constructor handles the rest.
+      this.driverLocation.set({ lat: location.lat, lng: location.lng });
     });
   }
 
@@ -211,7 +230,6 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
           this.center.set(pos);
           this.addMarker(pos, 'You are here');
 
-          // ✅ OLD: Complex loop logic removed
           // ✅ NEW: Delegate to MapUtilsService
           const dummyCars = this.mapUtils.generateNearbyCars(pos, this.carIcon);
           this.markers.update(curr => [...curr, ...dummyCars]);
@@ -230,9 +248,10 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     this.markers.update(current => [...current, newMarker]);
   }
 
-  initAutocomplete() {
+  // Updated to take element directly
+  initAutocomplete(inputElement: HTMLInputElement) {
     if (!google || !google.maps || !google.maps.places) return;
-    const autocomplete = new google.maps.places.Autocomplete(this.searchInput.nativeElement, { types: ['establishment', 'geocode'], componentRestrictions: { country: 'IN' } });
+    const autocomplete = new google.maps.places.Autocomplete(inputElement, { types: ['establishment', 'geocode'], componentRestrictions: { country: 'IN' } });
 
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
@@ -251,7 +270,8 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
       const response = await this.mapUtils.calculateRoute(from, to);
       this.directionsResult.set(response);
 
-      const options = this.mapUtils.estimatePrices(response, this.rideConfigs);
+      // ✅ Accessing signal value with ()
+      const options = this.mapUtils.estimatePrices(response, this.rideConfigs());
       this.rideOptions.set(options);
     } catch (error) {
       console.error(error);
@@ -327,9 +347,9 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  submitRating() {
+  submitRating(rating: number) {
     // 1. Toast dikhao
-    this.toast.success('Thanks for rating! 🌟', {
+    this.toast.success(`You rated ${rating} Stars! 🌟`, {
       duration: 3000, // Library ko bolo 3 sec
       position: 'bottom-center',
       style: {

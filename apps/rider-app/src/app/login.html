@@ -3,39 +3,45 @@
   <uber-card 
     title="Uber Rider" 
     description="Enter your details to login"
-    class="w-full max-w-md"
+    class="w-full max-w-md animate-fade-in"
   >
 
     <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="mt-8 space-y-6">
       
-      <div class="space-y-2">
+      <div class="space-y-1">
         <label class="text-sm font-medium text-gray-700">Email</label>
         <input 
           uberInput 
           type="email" 
           formControlName="email" 
           placeholder="name@example.com"
+          autocomplete="email" 
+          [class.border-red-500]="loginForm.controls.email.invalid && loginForm.controls.email.touched"
         />
-        <p *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.invalid" class="text-xs text-red-500">
-          Valid email is required
-        </p>
+        
+        @if (loginForm.controls.email.invalid && loginForm.controls.email.touched) {
+          <p class="text-xs text-red-500 animate-slide-up">
+            Please enter a valid email address
+          </p>
+        }
       </div>
 
-      <div class="space-y-2">
+      <div class="space-y-1">
         <label class="text-sm font-medium text-gray-700">Password</label>
         <input 
           uberInput 
           type="password" 
           formControlName="password" 
           placeholder="••••••••"
+          autocomplete="current-password"
+          [class.border-red-500]="loginForm.controls.password.invalid && loginForm.controls.password.touched"
         />
-        <p *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.invalid" class="text-xs text-red-500">
-          Min 6 characters required
-        </p>
-      </div>
-
-      <div *ngIf="errorMessage()" class="p-3 rounded-md bg-red-50 text-red-600 text-sm border border-red-200">
-        {{ errorMessage() }}
+        
+        @if (loginForm.controls.password.invalid && loginForm.controls.password.touched) {
+          <p class="text-xs text-red-500 animate-slide-up">
+            Password is required (min 6 chars)
+          </p>
+        }
       </div>
 
       <uber-button 
@@ -44,7 +50,17 @@
         type="submit" 
         [disabled]="isLoading()">
 
-        {{ isLoading() ? 'Signing in...' : 'Sign In' }}
+        @if (isLoading()) {
+          <span class="flex items-center gap-2">
+            <svg class="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Signing in...
+          </span>
+        } @else {
+          Sign In
+        }
 
       </uber-button>
 
@@ -52,7 +68,7 @@
 
     <div class="mt-6 text-center text-sm text-gray-600">
       Don't have an account?
-      <a routerLink="/signup" class="font-medium text-black hover:underline cursor-pointer">Sign up</a>
+      <a routerLink="/signup" class="font-bold text-black hover:underline cursor-pointer transition-colors">Sign up</a>
     </div>
 
   </uber-card>

@@ -1,55 +1,86 @@
-<div class="min-h-screen bg-gray-50 pb-20">
-  
+<div class="min-h-screen bg-gray-50 pb-20 animate-fade-in">
+
   <div class="bg-white p-4 shadow-sm sticky top-0 z-10 flex items-center gap-4">
-    <a routerLink="/" class="text-2xl cursor-pointer">←</a>
+    <a routerLink="/"
+      class="text-2xl cursor-pointer hover:bg-gray-100 w-10 h-10 flex items-center justify-center rounded-full transition-colors">←</a>
     <h1 class="text-xl font-bold">Your Trips</h1>
   </div>
 
-  @if (isLoading()) {
-    <div class="p-8 text-center text-gray-500">
-      Loading your rides...
+  @if (rides() === undefined) {
+    <div class="p-4 space-y-4">
+      @for (i of [1,2,3]; track i) {
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-24 animate-pulse flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-gray-200 rounded-full"></div>
+            <div class="space-y-2">
+              <div class="w-32 h-4 bg-gray-200 rounded"></div>
+              <div class="w-20 h-3 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+          <div class="w-16 h-6 bg-gray-200 rounded"></div>
+        </div>
+      }
     </div>
   }
 
-  @if (!isLoading() && rides().length === 0) {
-    <div class="flex flex-col items-center justify-center h-[60vh] text-gray-400">
-      <span class="text-6xl mb-4">📭</span>
-      <p>No rides yet.</p>
-      <a routerLink="/" class="text-black font-bold mt-4 underline">Book your first ride</a>
+  @else if (rides() === null) {
+    <div class="flex flex-col items-center justify-center h-[70vh] text-center p-6 animate-slide-up">
+      <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
+        <span class="text-3xl">⚠️</span>
+      </div>
+      <h3 class="text-xl font-bold text-gray-900">Oops! Something went wrong</h3>
+      <p class="text-gray-500 mt-2 mb-6 max-w-xs">
+        We couldn't load your ride history. Please check your internet connection.
+      </p>
+
+      <button (click)="onRetry()" 
+        class="bg-black text-white px-6 py-3 rounded-xl font-bold hover:bg-gray-800 transition-transform active:scale-95 shadow-lg flex items-center gap-2">
+        <span>Try Again</span> 
+        <span>↻</span>
+      </button>
     </div>
   }
 
-  <div class="p-4 space-y-4">
-    @for (ride of rides(); track ride.id) {
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-        
-        <div class="flex items-center gap-4">
-          <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-xl">
-            🚗
-          </div>
-          <div>
-            <h3 class="font-bold text-gray-900">
-              {{ ride.pickupAddr || 'Unknown Location' }}
-            </h3>
-            <p class="text-xs text-gray-500">
-              {{ ride.createdAt | date:'mediumDate' }} • {{ ride.createdAt | date:'shortTime' }}
-            </p>
-            
-            <span class="text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block"
-              [class.bg-green-100]="ride.status === 'COMPLETED'"
-              [class.text-green-700]="ride.status === 'COMPLETED'"
-              [class.bg-yellow-100]="ride.status === 'IN_PROGRESS'"
-              [class.bg-gray-100]="ride.status === 'SEARCHING'">
-              {{ ride.status }}
-            </span>
-          </div>
-        </div>
-
-        <div class="text-right">
-          <p class="font-bold text-lg">₹{{ ride.price }}</p>
-        </div>
-
+  @else {
+    
+    @if (rides()?.length === 0) {
+      <div class="flex flex-col items-center justify-center h-[60vh] text-gray-400 animate-slide-up">
+        <span class="text-6xl mb-4 grayscale opacity-50">🚗</span>
+        <p class="font-medium">No rides yet.</p>
+        <a routerLink="/" class="text-black font-bold mt-4 underline hover:text-gray-700">Book your first ride</a>
       </div>
     }
-  </div>
+
+    <div class="p-4 space-y-4">
+      @for (ride of rides()!; track ride.id) {
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center transition-transform active:scale-[0.99]">
+          
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-xl shadow-inner">
+              {{ ride.status === 'COMPLETED' ? '✅' : (ride.status === 'CANCELLED' ? '❌' : '🚗') }}
+            </div>
+
+            <div>
+              <h3 class="font-bold text-gray-900 line-clamp-1">
+                {{ ride.dropAddr || 'Unknown Destination' }}
+              </h3>
+              <p class="text-xs text-gray-500 mt-0.5">
+                {{ ride.createdAt | date:'MMM d, h:mm a' }}
+              </p>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full mt-2 inline-block border"
+                [ngClass]="getStatusClass(ride.status)">
+                {{ ride.status }}
+              </span>
+            </div>
+          </div>
+
+          <div class="text-right">
+            <p class="font-bold text-lg text-gray-900">₹{{ ride.price }}</p>
+            <p class="text-xs text-gray-400">Uber Go</p>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
 </div>

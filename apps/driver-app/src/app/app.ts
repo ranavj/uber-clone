@@ -1,10 +1,9 @@
-import { Component, inject, PLATFORM_ID, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, PLATFORM_ID, signal, OnInit, OnDestroy, effect } from '@angular/core'; // ✅ Added effect
 import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { environment } from '../../environments/environment';
 
-// Shared Libs
 import { UiButton, UiMapComponent, MapMarkerConfig } from '@uber/ui';
 import { SocketService } from '@uber-clone/socket-client';
 import { Ride, RideStatus, SOCKET_EVENTS } from '@uber-clone/interfaces';
@@ -32,7 +31,9 @@ export class App implements OnInit, OnDestroy {
   markers = signal<MapMarkerConfig[]>([]);
   directionsResult = signal<google.maps.DirectionsResult | null>(null);
 
-  // Driver ID (Hardcoded for simulation)
+  // ✅ NEW: Central Position Signal (The Source of Truth)
+  driverPosition = signal<google.maps.LatLngLiteral | null>(null);
+
   driverId = '4e90f50f-a7b7-4309-862b-959cf28a71ac';
 
   // Simulation Vars
@@ -41,65 +42,62 @@ export class App implements OnInit, OnDestroy {
   private routeIndex = 0;
   private prevPos: google.maps.LatLngLiteral | null = null;
 
+  constructor() {
+    // MAGIC: Effect monitors the signal
+    // Chahe GPS se location aaye ya Simulation se, Marker yahi update hoga.
+    effect(() => {
+      const pos = this.driverPosition();
+      if (pos) {
+        this.updateDriverMarker(pos);
+        this.center.set(pos); // Keep camera focused on driver
+      }
+    });
+  }
+
   get rideStatus() {
     return this.activeRide()?.status || '';
   }
 
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
-      // ✅ 1. Token Check (Refresh Fix)
       const token = localStorage.getItem('uber_token');
-
       if (!token) {
-        // 🚨 Token missing? Get one from Dev API
-        console.log('🔑 No Token found. Auto-logging in as Driver...');
+        console.log('🔑 Auto-logging in...');
         this.devLoginAndStart();
       } else {
-        // ✅ Token found? Start normally
         this.startApp();
       }
     }
   }
 
-  // 🛠️ AUTO-LOGIN LOGIC
   devLoginAndStart() {
     this.http.get<{ token: string }>(`${this.apiUrl}/rides/dev/token/${this.driverId}`).subscribe({
       next: (res) => {
-        console.log('✅ Dev Token Received!');
-        localStorage.setItem('uber_token', res.token); // Save Token
-        this.startApp(); // Now Start
+        localStorage.setItem('uber_token', res.token);
+        this.startApp();
       },
-      error: (err) => console.error('❌ Dev Login Failed:', err)
+      error: (err) => console.error('Login Failed:', err)
     });
   }
 
-  // 🚀 MAIN APP STARTUP
   startApp() {
     this.getCurrentLocation();
-    this.socketService.connect(); // Connects using the saved token
+    this.socketService.connect();
     this.setupSocketListeners();
-    this.checkActiveRide(); // No more 401 error!
+    this.checkActiveRide();
   }
 
-  // 🔄 REFRESH RECOVERY LOGIC (Driver)
   checkActiveRide() {
     this.http.get<Ride>(`${this.apiUrl}/rides/current-active`).subscribe({
       next: (ride) => {
         if (ride && ride.status !== RideStatus.COMPLETED && ride.status !== RideStatus.CANCELLED) {
-          console.log('♻️ Restoring Driver Session:', ride.id);
-
+          console.log('♻️ Restoring Session:', ride.id);
           this.activeRide.set(ride);
-
-          if (ride.status === RideStatus.ACCEPTED ||
-            ride.status === RideStatus.ARRIVED ||
-            ride.status === RideStatus.IN_PROGRESS) {
-
-            // Restore Navigation
+          if ([RideStatus.ACCEPTED, RideStatus.ARRIVED, RideStatus.IN_PROGRESS].includes(ride.status as any)) {
             this.calculateAndStartSimulation(ride);
           }
         }
-      },
-      error: (err) => console.log('No active ride found for driver', err)
+      }
     });
   }
 
@@ -107,8 +105,8 @@ export class App implements OnInit, OnDestroy {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
         const myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        this.center.set(myPos);
-        this.updateDriverMarker(myPos);
+        // ✅ Signal set kiya. Effect apne aap handle karega.
+        this.driverPosition.set(myPos);
       });
     }
   }
@@ -116,26 +114,19 @@ export class App implements OnInit, OnDestroy {
   private setupSocketListeners() {
     this.isConnected.set(true);
     this.socketService.listen(SOCKET_EVENTS.NEW_RIDE_AVAILABLE, (ride: Ride) => {
-      console.log('🔔 New Ride Alert:', ride);
-      if (!this.activeRide()) {
-        this.incomingRide.set(ride);
-      }
+      if (!this.activeRide()) this.incomingRide.set(ride);
     });
   }
 
   acceptRide() {
     const ride = this.incomingRide();
     if (!ride) return;
-
-    this.http.patch<Ride>(`${this.apiUrl}/rides/${ride.id}/accept`, {
-      driverId: this.driverId
-    }).subscribe({
+    this.http.patch<Ride>(`${this.apiUrl}/rides/${ride.id}/accept`, { driverId: this.driverId }).subscribe({
       next: (updatedRide) => {
         this.incomingRide.set(null);
         this.activeRide.set(updatedRide);
         this.calculateAndStartSimulation(updatedRide);
-      },
-      error: (err) => console.error(err)
+      }
     });
   }
 
@@ -146,29 +137,23 @@ export class App implements OnInit, OnDestroy {
   updateRideStatus() {
     const ride = this.activeRide();
     if (!ride) return;
-
-    let nextStatus: RideStatus | null = null;
-    switch (ride.status) {
-      case RideStatus.ACCEPTED: nextStatus = RideStatus.ARRIVED; break;
-      case RideStatus.ARRIVED: nextStatus = RideStatus.IN_PROGRESS; break;
-      case RideStatus.IN_PROGRESS: nextStatus = RideStatus.COMPLETED; break;
-      default: return;
-    }
-
+    
+    // Simple Next Status Logic
+    const nextStatusMap: any = {
+      [RideStatus.ACCEPTED]: RideStatus.ARRIVED,
+      [RideStatus.ARRIVED]: RideStatus.IN_PROGRESS,
+      [RideStatus.IN_PROGRESS]: RideStatus.COMPLETED
+    };
+    const nextStatus = nextStatusMap[ride.status];
     if (!nextStatus) return;
 
-    this.http.patch<Ride>(`${this.apiUrl}/rides/${ride.id}/status`, {
-      status: nextStatus
-    }).subscribe({
+    this.http.patch<Ride>(`${this.apiUrl}/rides/${ride.id}/status`, { status: nextStatus }).subscribe({
       next: (updatedRide) => {
         this.activeRide.set(updatedRide);
 
-        if (nextStatus === RideStatus.IN_PROGRESS) {
-          if (!this.simulationInterval) {
-            this.calculateAndStartSimulation(ride);
-          }
+        if (nextStatus === RideStatus.IN_PROGRESS && !this.simulationInterval) {
+           this.calculateAndStartSimulation(ride);
         }
-
         if (nextStatus === RideStatus.COMPLETED) {
           this.stopSimulation();
           this.directionsResult.set(null);
@@ -177,17 +162,13 @@ export class App implements OnInit, OnDestroy {
           this.activeRide.set(null);
           this.getCurrentLocation();
         }
-      },
-      error: (err) => console.error(err)
+      }
     });
   }
 
-  // 🗺️ Visual + Simulation Logic
   calculateAndStartSimulation(ride: Ride) {
     if (typeof google === 'undefined') return;
-
     const directionsService = new google.maps.DirectionsService();
-
     const request = {
       origin: { lat: ride.pickupLat, lng: ride.pickupLng },
       destination: { lat: ride.dropLat, lng: ride.dropLng },
@@ -213,20 +194,17 @@ export class App implements OnInit, OnDestroy {
         this.stopSimulation();
         return;
       }
-
       const point = this.routePath[this.routeIndex];
       const lat = typeof point.lat === 'function' ? point.lat() : point.lat;
       const lng = typeof point.lng === 'function' ? point.lng() : point.lng;
       const pos = { lat, lng };
 
-      this.updateDriverMarker(pos);
-      this.center.set(pos);
+      // ✅ OPTIMIZED: Update Signal Only
+      this.driverPosition.set(pos);
 
+      // Emit to Server
       this.socketService.emit(SOCKET_EVENTS.UPDATE_DRIVER_LOCATION, {
-        rideId: rideId,
-        lat: lat,
-        lng: lng,
-        heading: 0
+        rideId, lat, lng, heading: 0
       });
 
       this.routeIndex++;
@@ -234,8 +212,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   updateDriverMarker(pos: google.maps.LatLngLiteral) {
-    if (!pos || !pos.lat || !pos.lng) return;
-    if (typeof google === 'undefined') return;
+    if (!pos || typeof google === 'undefined') return;
 
     let heading = 0;
     if (this.prevPos && google.maps.geometry) {
@@ -256,10 +233,7 @@ export class App implements OnInit, OnDestroy {
     this.markers.set([{
       position: pos,
       title: 'Me',
-      options: {
-        icon: driverIcon,
-        zIndex: 9999
-      }
+      options: { icon: driverIcon, zIndex: 9999 }
     }]);
   }
 

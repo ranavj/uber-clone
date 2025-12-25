@@ -1,13 +1,20 @@
 <div class="relative h-screen w-full overflow-hidden">
 
-  <uber-map height="100vh" width="100%" 
-    [center]="center()" 
-    [markers]="markers()"
-    [directions]="directionsResult()">
-  </uber-map>
+  @defer (on idle) {
+    <uber-map height="100vh" width="100%" 
+      [center]="center()" 
+      [markers]="markers()"
+      [directions]="directionsResult()">
+    </uber-map>
+  } @placeholder {
+    <div class="h-full w-full bg-gray-100 flex flex-col items-center justify-center animate-pulse">
+      <div class="w-12 h-12 bg-gray-300 rounded-full mb-4"></div>
+      <p class="text-gray-400 font-medium">Loading Map...</p>
+    </div>
+  }
 
   @if (rideOptions().length === 0) {
-  <div class="absolute top-10 left-4 right-4 z-10">
+  <div class="absolute top-10 left-4 right-4 z-10 animate-fade-in">
     <div class="bg-white p-4 rounded-xl shadow-lg flex items-center gap-3">
       <div class="h-3 w-3 bg-black rounded-full"></div>
       <input #searchInput type="text" placeholder="Where to?"
@@ -15,7 +22,6 @@
     </div>
   </div>
   }
-
 
   @if (bookingStage() === 'select-ride' && rideOptions().length > 0) {
     <app-ride-selection 
@@ -35,14 +41,13 @@
       [driver]="assignedDriver()"
       [status]="bookingStage()"
       (cancel)="cancelRequest()"
-      (callDriver)="resetUI()"> 
-      </app-trip-details>
+      (callDriver)="resetUI()"> </app-trip-details>
   }
 
-  @if (bookingStage() === 'summary' && completedRide()) {
+  @if (bookingStage() === 'summary' && completedRide(); as ride) {
     <app-ride-summary 
-      [ride]="completedRide()" 
-      (close)="submitRating()">
+      [ride]="ride" 
+      (close)="submitRating($event)">
     </app-ride-summary>
   }
 
