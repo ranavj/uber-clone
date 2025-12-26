@@ -9,19 +9,21 @@ export class SocketService {
   private socket: Socket;
 
   constructor() {
-    // Backend URL (e.g., http://localhost:3000)
-    // Note: /api nahi lagana, socket root par connect hota hai
+    // 🛠️ FIX: Gateway URL (http://localhost:3000)
+    // environment.rideApiUrl = 'http://localhost:3000/api'
+    // .replace('/api', '') => 'http://localhost:3000'
     const url = environment.rideApiUrl.replace('/api', ''); 
     
     this.socket = io(url, {
-      autoConnect: false // Hum manually connect karenge jab user login hoga
+      autoConnect: false,
+      transports: ['websocket'] // Force websocket for better performance
     });
   }
 
   connect() {
     if (!this.socket.connected) {
       this.socket.connect();
-      console.log('🔌 Connecting to WebSocket...');
+      console.log('🔌 Connecting to WebSocket at 3000...');
       
       this.socket.on('connect', () => {
         console.log('✅ WebSocket Connected! ID:', this.socket.id);
@@ -35,12 +37,10 @@ export class SocketService {
     }
   }
 
-  // Event bhejne ke liye
   emit(eventName: string, data: any) {
     this.socket.emit(eventName, data);
   }
 
-  // Event sunne ke liye
   listen(eventName: string, callback: (data: any) => void) {
     this.socket.on(eventName, callback);
   }

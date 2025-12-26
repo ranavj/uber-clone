@@ -26,8 +26,8 @@ export class Auth {
   private transferState = inject(TransferState);
 
   get apiUrl() {
-    if (isPlatformServer(this.platformId)) return 'http://localhost:3000/api';
-    return environment.authApiUrl;
+    if (isPlatformServer(this.platformId)) return 'http://localhost:3002/api/auth';
+    return environment.authApiUrl+'/auth';
   }
 
   // ✅ Signal ab strictly 'User' type ka hai

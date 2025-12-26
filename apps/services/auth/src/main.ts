@@ -1,22 +1,23 @@
-/**
- * This is not a production server yet!
- * This is only a minimal backend to get started.
- */
-
-import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const globalPrefix = 'api';
-  app.setGlobalPrefix(globalPrefix);
-  app.enableCors();
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-  Logger.log(
-    `🚀 Application is running on: http://localhost:${port}/${globalPrefix}`
+  // CHANGE: CreateMicroservice use karein instead of create()
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+    AppModule,
+    {
+      transport: Transport.TCP,
+      options: {
+        host: '127.0.0.1', // Docker/Localhost sabke liye
+        port: 3002,      // 🔐 Auth Service ka naya Port (3001 Payment ka tha)
+      },
+    }
   );
+
+  await app.listen();
+  Logger.log('🔐 Auth Microservice is listening on TCP Port 3002');
 }
 
 bootstrap();

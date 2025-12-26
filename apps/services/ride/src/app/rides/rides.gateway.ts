@@ -17,6 +17,7 @@ import { SOCKET_EVENTS } from '@uber-clone/interfaces';
 @WebSocketGateway({
   cors: {
     origin: '*',
+    credentials: true,
   },
 })
 export class RidesGateway implements OnGatewayConnection, OnGatewayDisconnect {

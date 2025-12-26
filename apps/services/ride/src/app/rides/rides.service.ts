@@ -100,12 +100,27 @@ export class RidesService {
 
   // ride.service.ts
   async findActiveRideForUser(userId: string) {
-    return this.prisma.ride.findFirst({
-      where: {
-        OR: [{ riderId: userId }, { driverId: userId }],
-        status: { not: 'COMPLETED' } // Sirf active rides
-      },
-      include: { driver: true, rider: true } // Data populate karo
-    });
+    console.log(`🗄️ DB Query: Finding active ride for ${userId}`);
+
+    try {
+      // ⚠️ "findFirst" use karein, "findFirstOrThrow" nahi
+      const ride = await this.prisma.ride.findFirst({
+        where: {
+          riderId: userId,
+          status: {
+            in: ['REQUESTED', 'ACCEPTED', 'IN_PROGRESS', 'ARRIVED'], // Active Statuses
+          },
+        },
+        include: { driver: true }, // Driver info bhi le aao
+      });
+
+      console.log('✅ DB Result:', ride ? 'Ride Found' : 'No Active Ride');
+      return ride; // Agar nahi mila toh null return hoga (jo sahi hai)
+
+    } catch (error) {
+      console.error('❌ DB Error:', error);
+      // Prisma error ko safely handle karein
+      return null; 
+    }
   }
 }

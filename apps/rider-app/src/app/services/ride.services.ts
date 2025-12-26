@@ -2,12 +2,9 @@ import { Injectable, PLATFORM_ID, TransferState, inject, makeStateKey } from '@a
 import { HttpClient } from '@angular/common/http';
 import { Observable, of, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { isPlatformBrowser, isPlatformServer } from '@angular/common';
-
-// ✅ Import Shared Interface
+import { isPlatformBrowser } from '@angular/common';
 import { Ride } from '@uber-clone/interfaces';
 
-// State Keys
 const RIDE_TYPES_KEY = makeStateKey<any[]>('ride_types_config');
 const LOCATION_KEY = makeStateKey<any>('user_ip_location');
 
@@ -19,15 +16,12 @@ export class RideService {
   private platformId = inject(PLATFORM_ID);
   private transferState = inject(TransferState);
 
-  // 🌐 Dynamic API URL
+  // 🛠️ FIX: Direct Gateway URL use karein
   get apiUrl() {
-    if (isPlatformServer(this.platformId)) {
-      return 'http://localhost:3002/api'; 
-    }
-    return environment.rideApiUrl; // Expected: 'http://localhost:3002/api'
+    return environment.rideApiUrl; // http://localhost:3000/api
   }
 
-  // 1. Get Ride Types (Moto, Auto, etc.)
+  // 1. Get Ride Types
   getRideTypes() {
     if (this.transferState.hasKey(RIDE_TYPES_KEY)) {
       const data = this.transferState.get(RIDE_TYPES_KEY, []);
@@ -35,35 +29,32 @@ export class RideService {
       return of(data);
     }
 
+    // URL: http://localhost:3000/api/rides/types
     return this.http.get<any[]>(`${this.apiUrl}/rides/types`).pipe(
       tap(data => {
-        if (isPlatformServer(this.platformId)) {
+        if (!isPlatformBrowser(this.platformId)) {
           this.transferState.set(RIDE_TYPES_KEY, data);
         }
       })
     );
   }
 
-  // 2. Request A Ride (Create Booking)
-  // 🧹 CLEANED: Manual Headers hata diye. Interceptor ab Token khud lagayega.
+  // 2. Request A Ride
   requestRide(payload: any): Observable<Ride> {
-    // URL: /api/rides/request
     return this.http.post<Ride>(`${this.apiUrl}/rides/request`, payload);
   }
 
-  // 3. Get Initial Location (SSR IP Detect)
+  // 3. Get Initial Location
   getInitialLocation() {
     if (this.transferState.hasKey(LOCATION_KEY)) {
       const data = this.transferState.get(LOCATION_KEY, null);
       this.transferState.remove(LOCATION_KEY);
-      if (data) {
-        return of(data);
-      }
+      if (data) return of(data);
     }
 
     return this.http.get<any>(`${this.apiUrl}/rides/location`).pipe(
       tap(data => {
-        if (isPlatformServer(this.platformId)) {
+        if (!isPlatformBrowser(this.platformId)) {
           this.transferState.set(LOCATION_KEY, data);
         }
       })
@@ -79,8 +70,6 @@ export class RideService {
   }
 
   getCurrentRide() {
-    // GET /api/rides/current-active
-    // Backend par yeh endpoint banana padega jo active ride return kare
     return this.http.get<Ride | null>(`${this.apiUrl}/rides/current-active`);
   }
 }
