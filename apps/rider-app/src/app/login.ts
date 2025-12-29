@@ -1,13 +1,13 @@
 import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms'; // ✅ Strict Forms
-import { finalize } from 'rxjs/operators'; // ✅ Import finalize
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { firstValueFrom } from 'rxjs'; // ✅ RxJS to Promise
 
 // UI & Services
 import { UiInput, UiButton, UiCardComponent } from '@uber/ui';
 import { Auth, AuthResponse } from './services/auth';
-import { HotToastService } from '@ngneat/hot-toast'; // ✅ Better Alerts
+import { toast } from 'ngx-sonner'; // ✅ Sonner Import
 
 @Component({
   selector: 'app-login',
@@ -18,50 +18,51 @@ import { HotToastService } from '@ngneat/hot-toast'; // ✅ Better Alerts
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Login {
-  private fb = inject(NonNullableFormBuilder); // Strict Type
+  private fb = inject(NonNullableFormBuilder);
   private router = inject(Router);
   private authService = inject(Auth);
-  private toast = inject(HotToastService);
 
   isLoading = signal(false);
-  
-  //  Strict Form Definition
+
+  // Strict Form Definition
   loginForm = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]]
   });
 
-  onSubmit() {
+  async onSubmit() {
     if (this.loginForm.invalid) {
-      this.loginForm.markAllAsTouched(); //  Errors dikhane ke liye
+      this.loginForm.markAllAsTouched();
       return;
     }
 
     this.isLoading.set(true);
-
-    // ✅ Value access karne ka safe tareeka
     const credentials = this.loginForm.getRawValue();
 
-    this.authService.login(credentials)
-      .pipe(
-        finalize(() => this.isLoading.set(false))
-      )
-      .subscribe({
-        next: (response: AuthResponse) => {
-          console.log('✅ Login Success');
-          
-          this.toast.success('Welcome back!', {
-             style: { border: '1px solid #22c55e', color: '#14532d' }
-          });
-          
-          this.router.navigate(['/']);
-        },
-        error: (err) => {
-          console.error('Login Failed', err);
-          // Specific error message backend se, ya default
-          const msg = err.error?.message || 'Invalid email or password';
-          this.toast.error(msg);
-        }
-      });
+    // 🎯 Sonner Promise: Loading, Success aur Error handle karega
+    toast.promise(this.handleLoginRequest(credentials), {
+      loading: 'Signing you in...',
+      success: (data: AuthResponse) => {
+        this.router.navigate(['/']);
+        return 'Welcome back!';
+      },
+      error: (err:any) => {
+        this.isLoading.set(false);
+        return err.error?.message || 'Invalid email or password';
+      }
+    });
+  }
+
+  // 🎯 API Call Logic helper
+  private async handleLoginRequest(credentials: any) {
+    try {
+      // Observable ko Promise mein badla Sonner ke liye
+      const response = await firstValueFrom(this.authService.login(credentials));
+      this.isLoading.set(false);
+      return response;
+    } catch (error) {
+      this.isLoading.set(false);
+      throw error; // Throw karna zaroori hai taaki toast.promise error state pakad sake
+    }
   }
 }

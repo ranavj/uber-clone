@@ -1,27 +1,29 @@
+import { Component, AfterViewInit, viewChild, ElementRef, inject, OnInit, OnDestroy, PLATFORM_ID, signal, effect } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, inject, OnInit, OnDestroy, PLATFORM_ID, signal, viewChild, effect } from '@angular/core'; // ✅ Added viewChild, effect
-import { toSignal } from '@angular/core/rxjs-interop'; // ✅ Added toSignal
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterModule } from '@angular/router';
+import { Meta, Title } from '@angular/platform-browser';
 
-// Services
+// Services & Core
 import { RideService } from './services/ride.services';
 import { Auth } from './services/auth';
 import { SocketService } from '@uber-clone/socket-client';
+import { MarkerAnimation } from './services/marker-animation';
+import { MapUtils } from './services/map-utils';
 
 // UI Components
 import { MapMarkerConfig, UiMapComponent } from '@uber/ui';
-import { Meta, Title } from '@angular/platform-browser';
-
-// Shared Interfaces
-import { Ride, Driver, RideStatus, SOCKET_EVENTS } from '@uber-clone/interfaces';
-import { MarkerAnimation } from './services/marker-animation';
-import { MapUtils } from './services/map-utils';
 import { RideSelection } from './ui/ride-selection';
 import { RideSummary } from './ui/ride-summary/ride-summary';
 import { SearchingLoader } from './ui/searching-loader/searching-loader';
 import { TripDetails } from './ui/trip-details/trip-details';
-import { HotToastService } from '@ngneat/hot-toast';
 import { RiderSidebar } from './ui/rider-sidebar/rider-sidebar';
+
+// ✅ NEW: Sonner static import
+import { toast } from 'ngx-sonner'; 
+
+// Shared Interfaces
+import { Ride, Driver, RideStatus, SOCKET_EVENTS } from '@uber-clone/interfaces';
 
 interface RideOption {
   id: string;
@@ -39,7 +41,6 @@ interface RideOption {
   styleUrl: './home.css',
 })
 export class Home implements OnInit, AfterViewInit, OnDestroy {
-  // Dependencies
   private platformId = inject(PLATFORM_ID);
   private rideService = inject(RideService);
   private authService = inject(Auth);
@@ -47,34 +48,25 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   private socketService = inject(SocketService);
   private meta = inject(Meta);
   private title = inject(Title);
-  isMenuOpen = signal(false);
-  // ✅ NEW INJECTIONS
   private mapUtils = inject(MapUtils);
   private animator = inject(MarkerAnimation);
-  private toast = inject(HotToastService);
 
-  // ✅ MODERN VIEW CHILD (Replaces @ViewChild)
+  isMenuOpen = signal(false);
   searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
-  // --- SIGNALS ---
   center = signal<google.maps.LatLngLiteral>({ lat: 28.6139, lng: 77.2090 });
   markers = signal<MapMarkerConfig[]>([]);
   directionsResult = signal<google.maps.DirectionsResult | null>(null);
   rideOptions = signal<RideOption[]>([]);
   bookingStage = signal<'select-ride' | 'searching' | 'confirmed' | 'trip-started' | 'summary'>('select-ride');
 
-  // State Signals
   assignedDriver = signal<Driver | null>(null);
   completedRide = signal<Ride | null>(null);
   activeRide = signal<Ride | null>(null);
-
-  // ✅ NEW: Signal for Driver Location (Used in Effect)
   driverLocation = signal<google.maps.LatLngLiteral | null>(null);
 
-  // ✅ MODERN API DATA FETCHING (Replaces manual subscription)
   rideConfigs = toSignal(this.rideService.getRideTypes(), { initialValue: [] });
 
-  // Class Variables
   sourceLocation: google.maps.LatLngLiteral | null = null;
   currentCarPos: google.maps.LatLngLiteral | null = null;
   carIcon: google.maps.Icon = {
@@ -83,16 +75,13 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   };
 
   constructor() {
-    // ✅ NEW: Effect to handle Map Animation automatically
     effect(() => {
       const newPos = this.driverLocation();
       if (newPos) {
         if (!this.currentCarPos) {
-          // First time location update
           this.currentCarPos = newPos;
           this.updateDriverMarker(newPos);
         } else {
-          // Subsequent updates - Animate smoothly
           this.animator.animateMarker(this.currentCarPos, newPos, 1000, (updatedPos) => {
             this.updateDriverMarker(updatedPos);
             this.currentCarPos = updatedPos;
@@ -109,8 +98,6 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
       this.checkForActiveRide();
     }
 
-    // ❌ Removed manual subscription for rideConfigs (Handled by toSignal now)
-
     this.rideService.getInitialLocation().subscribe(serverLoc => {
       if (serverLoc && serverLoc.lat && serverLoc.lng) {
         this.title.setTitle(`Book Uber in ${serverLoc.city} | Fast & Affordable`);
@@ -123,105 +110,88 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit() {
     if (isPlatformBrowser(this.platformId)) {
-      // ✅ Using Signal to access ElementRef
       const inputEl = this.searchInput()?.nativeElement;
       if (inputEl) this.initAutocomplete(inputEl);
     }
   }
 
-  // 🔄 REFRESH RECOVERY
   checkForActiveRide() {
     this.rideService.getCurrentRide().subscribe({
       next: (ride) => {
         if (ride && ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED') {
-          console.log('♻️ Restoring Session for Ride:', ride.id);
-
-          // 1. State Restore
           this.activeRide.set(ride);
           if (ride.driver) this.assignedDriver.set(ride.driver);
 
-          // 2. UI Restore
           switch (ride.status) {
-            case RideStatus.SEARCHING:
-              this.bookingStage.set('searching');
-              break;
+            case RideStatus.SEARCHING: this.bookingStage.set('searching'); break;
             case RideStatus.ACCEPTED:
             case RideStatus.ARRIVED:
               this.bookingStage.set('confirmed');
-              // Driver dhikhao (Start point par ya last known location par)
               this.resetMapForTrip();
               break;
             case RideStatus.IN_PROGRESS:
               this.bookingStage.set('trip-started');
-              // Map ko active mode mein rakho
-              this.markers.set([]); // Socket se location aate hi marker aa jayega
+              this.markers.set([]);
               break;
           }
-
-          // 3. Socket Reconnect
           this.listenToRideEvents(ride.id);
         }
       },
-      error: (err) => console.log('No active ride to restore.')
+      error: () => console.log('No active ride to restore.')
     });
   }
 
-  // 🧠 CENTRAL BRAIN: Handles all socket updates (New or Restore)
   listenToRideEvents(rideId: string) {
-    console.log('🔌 Listening to events for:', rideId);
-
-    // 1. Status Updates (Searching -> Accepted -> Arrived -> Started -> Completed)
     const statusEvent = SOCKET_EVENTS.RIDE_STATUS_UPDATE(rideId);
 
     this.socketService.listen(statusEvent, (updatedRide: Ride) => {
-      console.log('🔔 Status Update:', updatedRide.status);
       this.activeRide.set(updatedRide);
 
       switch (updatedRide.status) {
-
         case RideStatus.ACCEPTED:
           if (updatedRide.driver) {
             this.assignedDriver.set(updatedRide.driver);
             this.bookingStage.set('confirmed');
-
-            // Agar map par driver nahi hai toh draw karo
+            toast.success('🚖 Driver Found!', { description: `${updatedRide.driver.name} is on the way.` });
             if (this.markers().length === 0) this.resetMapForTrip();
           }
           break;
 
         case RideStatus.ARRIVED:
           this.bookingStage.set('confirmed');
-          this.toast.success('🚖 Driver has Arrived!');
+          // ✅ Premium Sonner Notification
+          toast.info('Driver Arrived', { 
+            description: 'Your driver is waiting at the pickup point.',
+            duration: 8000 
+          });
           break;
 
         case RideStatus.IN_PROGRESS:
           this.bookingStage.set('trip-started');
+          toast.success('Trip Started', { description: 'Have a safe journey!' });
           break;
 
         case RideStatus.COMPLETED:
           this.completedRide.set(updatedRide);
           this.bookingStage.set('summary');
           this.activeRide.set(null);
-          this.animator.stopAnimation(); // Stop moving car
-          this.markers.set([]); // Clear map
+          this.animator.stopAnimation();
+          this.markers.set([]);
           break;
 
         case RideStatus.CANCELLED:
           this.resetState();
-          this.toast.error('Ride was cancelled.');
+          toast.error('Ride Cancelled', { description: 'The driver cancelled the request.' });
           break;
       }
     });
 
-    // 2. Live Tracking (Driver Location)
     const locationEvent = SOCKET_EVENTS.DRIVER_LOCATION_UPDATE(rideId);
     this.socketService.listen(locationEvent, (location: any) => {
-      // ✅ Just update the signal. The effect() in constructor handles the rest.
       this.driverLocation.set({ lat: location.lat, lng: location.lng });
     });
   }
 
-  // --- MAP & LOCATION LOGIC (Cleaned Up) ---
   getCurrentLocation() {
     if (isPlatformBrowser(this.platformId) && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -229,9 +199,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
           const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
           this.sourceLocation = pos;
           this.center.set(pos);
-          this.addMarker(pos, 'You are here');
-
-          // ✅ NEW: Delegate to MapUtilsService
+          this.addMarker(pos, 'You');
           const dummyCars = this.mapUtils.generateNearbyCars(pos, this.carIcon);
           this.markers.update(curr => [...curr, ...dummyCars]);
         },
@@ -242,21 +210,22 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
 
   private addMarker(position: google.maps.LatLngLiteral, title: string) {
     const newMarker: MapMarkerConfig = {
-      position,
-      title,
+      position, title,
       options: { animation: google.maps.Animation.DROP }
     };
     this.markers.update(current => [...current, newMarker]);
   }
 
-  // Updated to take element directly
   initAutocomplete(inputElement: HTMLInputElement) {
-    if (!google || !google.maps || !google.maps.places) return;
-    const autocomplete = new google.maps.places.Autocomplete(inputElement, { types: ['establishment', 'geocode'], componentRestrictions: { country: 'IN' } });
+    if (!google?.maps?.places) return;
+    const autocomplete = new google.maps.places.Autocomplete(inputElement, { 
+        types: ['establishment', 'geocode'], 
+        componentRestrictions: { country: 'IN' } 
+    });
 
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
-      if (place.geometry && place.geometry.location) {
+      if (place.geometry?.location) {
         const destPos = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
         this.center.set(destPos);
         if (this.sourceLocation) this.calculateRoute(this.sourceLocation, destPos);
@@ -265,22 +234,17 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  // ✅ Logic Moved to Service
   async calculateRoute(from: google.maps.LatLngLiteral, to: google.maps.LatLngLiteral) {
     try {
       const response = await this.mapUtils.calculateRoute(from, to);
       this.directionsResult.set(response);
-
-      // ✅ Accessing signal value with ()
       const options = this.mapUtils.estimatePrices(response, this.rideConfigs());
       this.rideOptions.set(options);
     } catch (error) {
-      console.error(error);
+      toast.error('Route calculation failed');
     }
   }
 
-  // --- 🚕 BOOKING LOGIC ---
-  // 🚕 Booking Request
   requestRide(rideId: string) {
     const user = this.authService.currentUser();
     if (!user) {
@@ -289,7 +253,6 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.bookingStage.set('searching');
-
     const ridePayload = {
       pickupLat: this.sourceLocation?.lat || 28.6139,
       pickupLng: this.sourceLocation?.lng || 77.2090,
@@ -301,79 +264,26 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
       riderId: user.id
     };
 
+    // ✅ Signal usage fixed
     this.rideService.requestRide(ridePayload).subscribe({
       next: (ride: Ride) => {
-        console.log('✅ Ride Requested:', ride.id);
         this.activeRide.set(ride);
-
-        // 👇 MAGIC: Logic Reuse! (No duplication)
         this.listenToRideEvents(ride.id);
       },
-      error: (err) => {
-        this.toast.error('Booking Failed!');
+      error: () => {
+        toast.error('Booking Failed');
         this.bookingStage.set('select-ride');
       }
     });
   }
 
-  handleMockDriverFound() {
-    const driver: Driver = { id: 'mock', name: 'Vikram', email: 'test', phone: '123', carModel: 'Swift', carNumber: 'DL123', carType: 'uber_go', rating: 4.8, isOnline: true };
-    this.assignedDriver.set(driver);
-    this.bookingStage.set('confirmed');
-    this.resetMapForTrip();
-  }
-
-  resetMapForTrip() {
-    this.markers.set([]);
-    if (this.sourceLocation) {
-      this.addMarker(this.sourceLocation, 'You');
-      const mockDriverStart = { lat: this.sourceLocation.lat + 0.01, lng: this.sourceLocation.lng + 0.01 };
-
-      // ✅ NEW: Clean Mock Animation
-      this.animator.animateMarker(mockDriverStart, this.sourceLocation, 2000, (pos) => {
-        this.updateDriverMarker(pos);
-      });
-    }
-  }
-
-  updateDriverMarker(pos: google.maps.LatLngLiteral) {
-    this.markers.update(current => {
-      const userMarker = current.find(m => m.title === 'You' || m.title === 'Destination');
-      const driverMarker: MapMarkerConfig = {
-        position: pos,
-        title: 'Your Driver',
-        options: { icon: this.carIcon, zIndex: 100 }
-      };
-      return userMarker ? [userMarker, driverMarker] : [driverMarker];
-    });
-  }
-
   submitRating(rating: number) {
-    // 1. Toast dikhao
-    this.toast.success(`You rated ${rating} Stars! 🌟`, {
-      duration: 3000, // Library ko bolo 3 sec
-      position: 'bottom-center',
-      style: {
-        border: '1px solid #22c55e',
-        padding: '16px',
-        color: '#14532d',
-        background: '#f0fdf4',
-        fontWeight: 'bold',
-      }
+    // ✅ No more nuclear options. Sonner handles cleanup automatically.
+    toast.success('Thank You!', {
+      description: `You rated ${rating} stars.`,
+      duration: 3000,
     });
-
-    // 2. State Reset
     this.resetUI();
-
-    // 3. 💣 NUCLEAR OPTION: 3 second baad zabardasti HTML se udao
-    setTimeout(() => {
-      // Jitne bhi toast containers hain, sabko pakdo
-      const elements = document.querySelectorAll('.hot-toast-bar-base-container');
-
-      // Sabko delete kar do
-      elements.forEach(el => el.remove());
-
-    }, 3000); // 3000ms = 3 seconds
   }
 
   resetUI() {
@@ -394,13 +304,13 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     }
     if (!ride) return;
 
-    if (confirm('Are you sure you want to cancel?')) {
+    if (confirm('Cancel this ride?')) {
       this.rideService.cancelRide(ride.id).subscribe({
         next: () => {
           this.resetState();
-          alert('Ride cancelled successfully');
+          toast.success('Ride Cancelled');
         },
-        error: () => alert('Could not cancel ride')
+        error: () => toast.error('Cancellation failed')
       });
     }
   }
@@ -413,11 +323,27 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
     this.assignedDriver.set(null);
   }
 
-  toggleMenu() {
-    this.isMenuOpen.update(val => !val);
+  // --- Utility ---
+  updateDriverMarker(pos: google.maps.LatLngLiteral) {
+    this.markers.update(current => {
+      const userMarker = current.find(m => m.title === 'You' || m.title === 'Destination');
+      const driverMarker: MapMarkerConfig = {
+        position: pos, title: 'Your Driver',
+        options: { icon: this.carIcon, zIndex: 100 }
+      };
+      return userMarker ? [userMarker, driverMarker] : [driverMarker];
+    });
   }
+
+  resetMapForTrip() {
+    this.markers.set([]);
+    if (this.sourceLocation) {
+      this.addMarker(this.sourceLocation, 'You');
+    }
+  }
+
+  toggleMenu() { this.isMenuOpen.update(val => !val); }
   
-  // Logout Function (Basic)
   logout() {
     localStorage.removeItem('uber_token');
     this.router.navigate(['/login']);
@@ -425,6 +351,6 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     this.socketService.disconnect();
-    this.animator.stopAnimation(); // Clean Service call
+    this.animator.stopAnimation();
   }
 }

@@ -21,7 +21,7 @@ async function bootstrap() {
 
   // CORS Enable karein (Socket handshake ke liye zaroori hai)
   app.enableCors({
-    origin: '*', // Ya specific frontend URL
+    origin: ['http://localhost:4200', 'http://localhost:3000'], // Ya specific frontend URL
     methods: 'GET,POST',
     credentials: true,
   });

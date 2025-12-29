@@ -13,12 +13,16 @@ import { RidesService } from './rides.service';
 
 // Shared Constants
 import { SOCKET_EVENTS } from '@uber-clone/interfaces';
+import { Payload } from '@nestjs/microservices';
 
 @WebSocketGateway({
+  path: '/socket.io', // 👈 Isse explicit add karein
   cors: {
-    origin: '*',
+    origin: ['http://localhost:4200', 'http://localhost:3000'],
     credentials: true,
   },
+  transports: ['polling', 'websocket'],
+  allowEIO3: true
 })
 export class RidesGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
@@ -96,6 +100,17 @@ export class RidesGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDriverLocation(@MessageBody() data: { rideId: string, lat: number, lng: number, heading: number }) {
     const eventName = SOCKET_EVENTS.DRIVER_LOCATION_UPDATE(data.rideId);
     this.server.emit(eventName, data);
+  }
+
+  @SubscribeMessage('notify.wallet_update')
+  handleWalletNotify(@Payload() data: { userId: string, newBalance: number }) {
+    this.logger.log(`🔔 Socket Triggered for User: ${data.userId}`);
+
+    // 1. Global Emit (Testing ke liye - isse toast aa jana chahiye)
+    this.server.emit(SOCKET_EVENTS.WALLET_UPDATE, data);
+
+    // 2. Specific User (Production ke liye - iske liye frontend par room join karna hoga)
+    // this.server.to(`user_${data.userId}`).emit(SOCKET_EVENTS.WALLET_UPDATE, data);
   }
 
   @SubscribeMessage('ping')

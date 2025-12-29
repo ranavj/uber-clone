@@ -35,20 +35,18 @@ export class AppController {
     }
   }
 
-  // ... (Login/Signup same rahega) ...
-
   @MessagePattern('auth.get_profile')
   async getProfile(@Payload() userId: string) {
-    console.log(`👤 Fetching Profile for: ${userId}`);
+    console.log(`👤 Auth Service: Fetching Profile for: ${userId}`);
     try {
       const user = await this.appService.getUserById(userId);
-      // 🛡️ SAFETY CHECK
       if (!user) {
-        throw new RpcException('User not found'); // Explicit Error better than undefined
+        return { error: 'User not found' }; // RpcException ki jagah object bhejna safer hai TCP mein
       }
-      return user;
+      return user; 
     } catch (error) {
-      throw new RpcException('User fetch failed');
+      console.error('❌ Auth TCP Error:', error.message);
+      return { error: 'Fetch failed', message: error.message };
     }
   }
 }

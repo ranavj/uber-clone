@@ -9,4 +9,7 @@ export const SOCKET_EVENTS = {
   // Dynamic Events (Function jo ID lekar event name banaye)
   RIDE_STATUS_UPDATE: (rideId: string) => `ride-status-${rideId}`,
   DRIVER_LOCATION_UPDATE: (rideId: string) => `driver-location-${rideId}`,
+
+  //  Wallet Event
+  WALLET_UPDATE: 'WALLET_UPDATE'
 };

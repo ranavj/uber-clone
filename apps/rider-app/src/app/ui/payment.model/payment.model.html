@@ -1,0 +1,42 @@
+<div class="payment-modal-container">
+  <div class="modal-card">
+    <header>
+      <h3>💳 Add Funds</h3>
+      @if (currentBalance() > 0) {
+        <span class="balance-chip">Balance: ₹{{ currentBalance() }}</span>
+      }
+    </header>
+
+    <div class="input-group">
+      <label>Enter Amount (₹)</label>
+      <input type="number" [(ngModel)]="selectedAmount" class="amount-input" />
+    </div>
+
+    <div class="stripe-container">
+      <div class="field-row">
+        <label>CARD NUMBER</label>
+        <div #cardNumber class="stripe-input"></div>
+      </div>
+      
+      <div class="field-flex">
+        <div class="field-half">
+          <label>EXPIRY</label>
+          <div #cardExpiry class="stripe-input"></div>
+        </div>
+        <div class="field-half">
+          <label>CVC</label>
+          <div #cardCvc class="stripe-input"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="pay-btn" [disabled]="loading()" (click)="handlePayment()">
+      @if (loading()) {
+        <span class="btn-spinner"></span>
+        Processing...
+      } @else {
+        Pay ₹{{ selectedAmount() }}
+      }
+    </button>
+  </div>
+</div>

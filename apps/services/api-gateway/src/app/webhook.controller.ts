@@ -1,73 +1,56 @@
-import { Controller, Post, Headers, Req, BadRequestException, Inject } from '@nestjs/common';
+import { 
+  Controller, 
+  Post, 
+  Headers, 
+  Req, 
+  BadRequestException, 
+  Inject, 
+  RawBodyRequest 
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { lastValueFrom } from 'rxjs'; 
-import Stripe from 'stripe';
+import { Request } from 'express';
 
 @Controller('webhook')
 export class WebhookController {
-  private stripe: Stripe;
-
   constructor(
     @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientProxy
-  ) {
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-12-15.clover' as any,
-    });
-  }
+  ) {}
 
   @Post('stripe')
-  async handleStripeWebhook(@Headers('stripe-signature') signature: string, @Req() request: any) {
+  async handleStripeWebhook(
+    @Headers('stripe-signature') signature: string, 
+    @Req() request: RawBodyRequest<Request>
+  ) {
     console.log('------------------------------------------------');
-    console.log('🔔 Webhook received!');
-    
-    // Debug Logs (Optional: Ab hata bhi sakte ho agar chaho)
-    // console.log(`🔍 Signature Length: ${signature ? signature.length : 'MISSING'}`);
+    console.log('🔔 Webhook received at Gateway!');
 
-    if (!signature) throw new BadRequestException('Missing signature');
+    // 1. Basic Validation
+    if (!signature) {
+      console.error('❌ Missing stripe-signature header');
+      throw new BadRequestException('Missing signature');
+    }
 
-    let event: Stripe.Event;
+    if (!request.rawBody) {
+      console.error('❌ rawBody is missing! Check main.ts bodyParser config.');
+      throw new BadRequestException('Raw body not preserved');
+    }
 
     try {
-      event = this.stripe.webhooks.constructEvent(
-        request.rawBody, 
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-      console.log('✅ Signature Verified. Event Type:', event.type);
-    } catch (err) {
-      console.error(`❌ CRITICAL ERROR: ${err.message}`);
-      throw new BadRequestException(`Webhook Error: ${err.message}`);
+      // 2. 🚀 FORWARD TO PAYMENT SERVICE
+      // Hum event verify nahi kar rahe, sirf data emit kar rahe hain taaki Gateway block na ho
+      this.paymentClient.emit('payment.stripe_webhook_received', {
+        signature: signature,
+        payload: request.rawBody, // Yeh Buffer format mein jayega
+      });
+
+      console.log('📤 Webhook payload forwarded to Payment Service via TCP');
+      
+      // 3. Stripe ko 200 OK turant bhej rahe hain
+      return { received: true };
+
+    } catch (error) {
+      console.error('❌ Failed to forward webhook:', error.message);
+      throw new BadRequestException('Webhook forwarding failed');
     }
-
-    // ✅ Payment Logic
-    if (event.type === 'payment_intent.succeeded') {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        
-        // 🔄 UPDATE: Real User ID Metadata se lo. 
-        // Agar Metadata khali hai (Stripe CLI Test), toh 'test-user-123' use karo.
-        const userId = paymentIntent.metadata.userId || 'test-user-123'; 
-        const amount = paymentIntent.amount;
-
-        console.log(`🚀 Processing Payment for User: ${userId}, Amount: ${amount}`);
-
-        try {
-          // 📡 Send Message to Payment Service
-          const result = await lastValueFrom(
-            this.paymentClient.send('payment.add_funds', {
-              userId,
-              amount,
-              refId: paymentIntent.id,
-            })
-          );
-          
-          console.log('✅ Payment Service Response (Wallet Updated):', result);
-        } catch (error) {
-          console.error('❌ Failed to talk to Payment Service:', error.message);
-        }
-    } else {
-      console.log(`ℹ️ Ignoring event type: ${event.type}`);
-    }
-
-    return { received: true };
   }
 }

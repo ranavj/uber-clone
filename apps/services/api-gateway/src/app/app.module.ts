@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule } from '@nestjs/config';
 // 👇 NEW IMPORTS (Auth ke liye)
@@ -10,6 +10,8 @@ import { PaymentController } from './payment.controller';
 import { AuthController } from './auth.controller';
 import { RidesController } from './rides.controller';
 import { JwtStrategy } from './auth/jwt.strategy';
+import { SocketProxyMiddleware } from './socket-proxy.middleware';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 @Module({
   imports: [
@@ -59,4 +61,19 @@ import { JwtStrategy } from './auth/jwt.strategy';
   // 👇 3. STRATEGY PROVIDER ADDED
   providers: [JwtStrategy], 
 })
-export class AppModule {}
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(
+        createProxyMiddleware({
+          target: 'http://127.0.0.1:3013',
+          ws: true,
+          changeOrigin: true,
+        }),
+      )
+      .forRoutes({
+        path: 'socket.io', // 👈 Sirf socket.io requests ke liye
+        method: RequestMethod.ALL,
+      });
+  }
+}

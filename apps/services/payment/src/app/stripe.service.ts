@@ -24,8 +24,19 @@ export class StripeService {
       const paymentIntent = await this.stripe.paymentIntents.create({
         amount: amount * 100, // 👈 Important: ₹1 = 100 paise conversion
         currency: this.configService.get('STRIPE_CURRENCY') || 'inr',
+        description: 'Wallet Top-up for Uber Clone Service',
         metadata: {
           userId: userId, // Webhook mein yahi ID wapas aayegi
+        },
+        shipping: {
+          name: 'Test User',
+          address: {
+            line1: '510 Townsend St',
+            postal_code: '98140',
+            city: 'San Francisco',
+            state: 'CA',
+            country: 'US',
+          },
         },
         automatic_payment_methods: {
           enabled: true,

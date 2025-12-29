@@ -1,16 +1,19 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Component, inject, PLATFORM_ID } from '@angular/core';
+import { Component, inject, PLATFORM_ID, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { HotToastService } from '@ngneat/hot-toast';
 import { Subscription, fromEvent } from 'rxjs';
+// ✅ Updated: ngx-sonner static import aur Component import
+import { toast, NgxSonnerToaster } from 'ngx-sonner'; 
+
 @Component({
-  imports: [ RouterModule],
+  standalone: true,
+  // ✅ Toaster component ko imports mein shamil kiya
+  imports: [RouterModule, NgxSonnerToaster], 
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
-export class App {
-  private toast = inject(HotToastService);
+export class App implements OnInit, OnDestroy {
   private offlineSub!: Subscription;
   private onlineSub!: Subscription;
   private platformId = inject(PLATFORM_ID);
@@ -18,38 +21,28 @@ export class App {
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
       
-      // 🔴 Jab Net Chala Jaye (Sirf Browser mein chalega)
+      // 🔴 Jab Net Chala Jaye (Offline)
       this.offlineSub = fromEvent(window, 'offline').subscribe(() => {
-        this.toast.error('You are offline! 🔴', {
-          id: 'offline-toast',
+        toast.error('You are offline! 🔴', {
+          id: 'connectivity-toast', // Same ID taaki ek hi dikhe
+          description: 'Please check your internet connection.',
           duration: 5000,
-          position: 'bottom-center',
-          style: { 
-            background: '#fee2e2', 
-            color: '#dc2626', 
-            fontWeight: 'bold' 
-          }
         });
       });
 
-      // 🟢 Jab Net Wapas Aaye
+      // 🟢 Jab Net Wapas Aaye (Online)
       this.onlineSub = fromEvent(window, 'online').subscribe(() => {
-        this.toast.success('Back online! 🟢', {
-          id: 'online-toast',
+        toast.success('Back online! 🟢', {
+          id: 'connectivity-toast', // ID match karne se offline wala hat jayega
+          description: 'Your connection has been restored.',
           duration: 3000,
-          position: 'bottom-center',
-          style: { 
-            background: '#dcfce7', 
-            color: '#166534', 
-            fontWeight: 'bold' 
-          }
         });
       });
     }
   }
 
   ngOnDestroy() {
-    // Memory leak rokne ke liye unsubscribe zaroori hai
+    // Memory leak rokne ke liye unsubscribe
     if (this.offlineSub) this.offlineSub.unsubscribe();
     if (this.onlineSub) this.onlineSub.unsubscribe();
   }

@@ -4,6 +4,7 @@ import { Login } from './login';
 import { Signup } from './signup/signup';
 import { Home } from './home';
 import { History } from './history/history';
+import { PaymentModalComponent } from './ui/payment.model/payment.model';
 
 export const appRoutes: Route[] = [
     // 1. Public Routes
@@ -12,6 +13,11 @@ export const appRoutes: Route[] = [
     {
         path: 'history',
         component: History,
+        canActivate: [authGuard]
+    },
+    {
+        path: 'wallet',
+        component: PaymentModalComponent,
         canActivate: [authGuard]
     },
     {
