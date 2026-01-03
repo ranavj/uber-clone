@@ -20,10 +20,12 @@ import { TripDetails } from './ui/trip-details/trip-details';
 import { RiderSidebar } from './ui/rider-sidebar/rider-sidebar';
 
 // ✅ NEW: Sonner static import
-import { toast } from 'ngx-sonner'; 
+import { toast } from 'ngx-sonner';
 
 // Shared Interfaces
 import { Ride, Driver, RideStatus, SOCKET_EVENTS } from '@uber-clone/interfaces';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../environments/environment';
 
 interface RideOption {
   id: string;
@@ -50,7 +52,8 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   private title = inject(Title);
   private mapUtils = inject(MapUtils);
   private animator = inject(MarkerAnimation);
-
+  private http = inject(HttpClient);
+  private apiUrl = environment.rideApiUrl;
   isMenuOpen = signal(false);
   searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
@@ -64,7 +67,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   completedRide = signal<Ride | null>(null);
   activeRide = signal<Ride | null>(null);
   driverLocation = signal<google.maps.LatLngLiteral | null>(null);
-
+  currentBalance = signal<number>(0);
   rideConfigs = toSignal(this.rideService.getRideTypes(), { initialValue: [] });
 
   sourceLocation: google.maps.LatLngLiteral | null = null;
@@ -93,11 +96,23 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
-      this.getCurrentLocation();
+      // 1. Sabse pehle Token check karein
+      const token = localStorage.getItem('uber_token');
+
+      if (!token) {
+        console.warn('🔑 No token found, redirecting to login...');
+        this.router.navigate(['/login']);
+        return;
+      }
+
+      // 2. Agar token hai, tabhi balance fetch aur socket connect karein
+      this.fetchBalance();
       this.socketService.connect();
+      this.getCurrentLocation();
       this.checkForActiveRide();
     }
 
+    // Initial location fetch (Server side logic)
     this.rideService.getInitialLocation().subscribe(serverLoc => {
       if (serverLoc && serverLoc.lat && serverLoc.lng) {
         this.title.setTitle(`Book Uber in ${serverLoc.city} | Fast & Affordable`);
@@ -113,6 +128,23 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
       const inputEl = this.searchInput()?.nativeElement;
       if (inputEl) this.initAutocomplete(inputEl);
     }
+  }
+
+  fetchBalance() {
+    console.log('📡 Fetching Rider Balance...');
+    this.http.get<{ balance: number }>(`${this.apiUrl}/payment/get_balance`).subscribe({
+      next: (res) => {
+        this.currentBalance.set(res.balance);
+        console.log('✅ Balance updated:', res.balance);
+      },
+      error: (err) => {
+        console.error('❌ Balance fetch failed:', err);
+        if (err.status === 401) {
+          // Agar token expire ho gaya ho toh logout karwa do
+          this.logout();
+        }
+      }
+    });
   }
 
   checkForActiveRide() {
@@ -160,9 +192,9 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
         case RideStatus.ARRIVED:
           this.bookingStage.set('confirmed');
           // ✅ Premium Sonner Notification
-          toast.info('Driver Arrived', { 
+          toast.info('Driver Arrived', {
             description: 'Your driver is waiting at the pickup point.',
-            duration: 8000 
+            duration: 8000
           });
           break;
 
@@ -218,9 +250,9 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
 
   initAutocomplete(inputElement: HTMLInputElement) {
     if (!google?.maps?.places) return;
-    const autocomplete = new google.maps.places.Autocomplete(inputElement, { 
-        types: ['establishment', 'geocode'], 
-        componentRestrictions: { country: 'IN' } 
+    const autocomplete = new google.maps.places.Autocomplete(inputElement, {
+      types: ['establishment', 'geocode'],
+      componentRestrictions: { country: 'IN' }
     });
 
     autocomplete.addListener('place_changed', () => {
@@ -278,12 +310,32 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   }
 
   submitRating(rating: number) {
-    // ✅ No more nuclear options. Sonner handles cleanup automatically.
-    toast.success('Thank You!', {
-      description: `You rated ${rating} stars.`,
-      duration: 3000,
+    const ride = this.completedRide();
+    if (!ride) return;
+
+    // Hum Payment Service ka 'payment.process_ride' pattern trigger karenge
+    this.rideService.processPayment({
+      rideId: ride.id,
+      riderId: ride.riderId,
+      driverId: ride.driverId,
+      amount: ride.price
+    }).subscribe({
+      next: (res: any) => {
+        // ✅ STEP 2: Payment success hone par UI clean karein
+        toast.success('Payment Successful!', {
+          description: `₹${ride.price} deducted from wallet.`,
+          duration: 3000,
+        });
+        this.resetUI();
+      },
+      error: (err: any) => {
+        // ❌ Balance kam hone par error dikhayein
+        toast.error('Payment Failed', {
+          description: err.error?.message || 'Insufficient balance in wallet.'
+        });
+        this.resetUI();
+      }
     });
-    this.resetUI();
   }
 
   resetUI() {
@@ -343,7 +395,7 @@ export class Home implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleMenu() { this.isMenuOpen.update(val => !val); }
-  
+
   logout() {
     localStorage.removeItem('uber_token');
     this.router.navigate(['/login']);

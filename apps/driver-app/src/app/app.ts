@@ -1,7 +1,8 @@
-import { Component, inject, PLATFORM_ID, signal, OnInit, OnDestroy, effect } from '@angular/core'; // ✅ Added effect
+import { Component, inject, PLATFORM_ID, signal, OnInit, OnDestroy, effect, ChangeDetectorRef, NgZone } from '@angular/core'; // ✅ Added effect
 import { Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
+import { NgxSonnerToaster, toast } from 'ngx-sonner';
 import { environment } from '../../environments/environment';
 
 import { UiButton, UiMapComponent, MapMarkerConfig } from '@uber/ui';
@@ -12,7 +13,7 @@ import { DriverSidebar } from './ui/driver-sidebar/driver-sidebar';
 declare var google: any;
 
 @Component({
-  imports: [RouterModule, UiButton, UiMapComponent, DriverSidebar],
+  imports: [RouterModule, UiButton, UiMapComponent, DriverSidebar, NgxSonnerToaster],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -23,6 +24,8 @@ export class App implements OnInit, OnDestroy {
   private socketService = inject(SocketService);
   private apiUrl = environment.rideApiUrl;
   private router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly zone = inject(NgZone);
   isConnected = signal(false);
   incomingRide = signal<Ride | null>(null);
   activeRide = signal<Ride | null>(null);
@@ -42,6 +45,7 @@ export class App implements OnInit, OnDestroy {
   private routePath: any[] = [];
   private routeIndex = 0;
   private prevPos: google.maps.LatLngLiteral | null = null;
+  currentBalance = signal<number>(0);
 
   constructor() {
     // MAGIC: Effect monitors the signal
@@ -69,8 +73,48 @@ export class App implements OnInit, OnDestroy {
         this.startApp();
       }
     }
+   
+    // driver-app -> app.ts
+    this.socketService.listen(SOCKET_EVENTS.WALLET_UPDATE, (data: any) => {
+      console.log('💰 Balance Update Received on Driver App!', data);
+      this.zone.run(() => {
+        // Backend se "newBalance" aayega
+        this.currentBalance.set(data.newBalance);
+        this.cdr.detectChanges();
+        // Premium Success Toast
+        toast.success('Earnings Received!', {
+          description: `Ride fare credited to your wallet. Total: ₹${data.newBalance}`,
+          duration: 5000
+        });
+
+        this.cdr.detectChanges();
+      });
+    });
+
+    // this.socketService.listen(SOCKET_EVENTS.WALLET_UPDATE, (data: any) => {
+    //   // 🎯 FIX: Zone.run ensure karta hai ki Angular UI refresh kare
+    //   this.zone.run(() => {
+    //     this.currentBalance.set(data.newBalance);
+    //     this.cdr.detectChanges(); // 👈 Manual refresh (Zoneless fix)
+    //   });
+    // });
   }
 
+  private fetchBalance() {
+    const token = localStorage.getItem('uber_token');
+    if (!token) return;
+
+    this.http.get<{ balance: number }>(`${this.apiUrl}/payment/get_balance`).subscribe({
+      next: (res) => {
+        this.currentBalance.set(res.balance);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Balance fetch failed (401 Check):', err);
+        // Agar interceptor fail ho raha hai toh token manually bhej kar dekhein
+      }
+    });
+  }
   // ✅ 2. TOGGLE MENU
   toggleMenu() {
     this.isMenuOpen.update(val => !val);
@@ -80,28 +124,56 @@ export class App implements OnInit, OnDestroy {
   logout() {
     // Token saaf karo
     localStorage.removeItem('uber_token');
-    
+
     // Simulation roko (background mein na chalta rahe)
     this.stopSimulation();
-    
+
     // Socket disconnect karo
     this.socketService.disconnect();
 
     // Login page par bhejo
     this.router.navigate(['/login']);
   }
+  // driver-app -> app.ts
   devLoginAndStart() {
-    this.http.get<{ token: string }>(`${this.apiUrl}/rides/dev/token/${this.driverId}`).subscribe({
-      next: (res) => {
-        localStorage.setItem('uber_token', res.token);
-        this.startApp();
-      },
-      error: (err) => console.error('Login Failed:', err)
-    });
+    console.log('Attempting Dev Login for:', this.driverId);
+    // 🎯 FIX: Full URL check karein (Ensure port 3000/3001 of Gateway is used)
+    this.http.get<{ token: string }>(`${this.apiUrl}/rides/dev/token/${this.driverId}`)
+      .subscribe({
+        next: (res) => {
+          console.log('✅ Token Received');
+          localStorage.setItem('uber_token', res.token);
+          this.startApp();
+        },
+        error: (err) => {
+          console.error('❌ Login Failed. Is Gateway Running?', err);
+          // Retry logic ya manual error toast
+        }
+      });
   }
 
   startApp() {
+    this.fetchBalance();
     this.getCurrentLocation();
+
+    // 1. Pehle listeners setup karein
+    this.socketService.listen('connect', () => {
+      console.log('✅ Driver Connected via Gateway!');
+      this.isConnected.set(true);
+
+      // 2. Room join karne ka signal bhejein
+      this.socketService.emit('join', {
+        userId: this.driverId,
+        userType: 'driver'
+      });
+    });
+
+    this.socketService.listen('connect_error', (err) => {
+      console.error('❌ Connection Error:', err.message);
+      toast.error('Socket Connection Failed: ' + err.message);
+    });
+
+    // 3. Ab connect karein
     this.socketService.connect();
     this.setupSocketListeners();
     this.checkActiveRide();
@@ -131,10 +203,36 @@ export class App implements OnInit, OnDestroy {
     }
   }
 
+  // private setupSocketListeners() {
+  //   this.isConnected.set(true);
+  //   this.socketService.listen(SOCKET_EVENTS.NEW_RIDE_AVAILABLE, (ride: Ride) => {
+  //     if (!this.activeRide()) this.incomingRide.set(ride);
+  //   });
+  // }
   private setupSocketListeners() {
-    this.isConnected.set(true);
+    // 🔔 Jab naya rider request karega
     this.socketService.listen(SOCKET_EVENTS.NEW_RIDE_AVAILABLE, (ride: Ride) => {
-      if (!this.activeRide()) this.incomingRide.set(ride);
+      console.log('🚕 New Ride Request Received!', ride);
+      if (!this.activeRide()) {
+        this.incomingRide.set(ride);
+        // Clean sound/vibration notification
+        toast.info('New Ride Request!', {
+          description: `From pickup: ${ride.pickupAddr || 'Nearby'}`,
+          duration: 15000, // 15 sec window to accept
+          action: {
+            label: 'View',
+            onClick: () => console.log('Viewing ride...')
+          }
+        });
+      }
+    });
+
+    // Ride Cancelled listener
+    this.socketService.listen(SOCKET_EVENTS.RIDE_CANCELLED, () => {
+      this.incomingRide.set(null);
+      this.activeRide.set(null);
+      toast.error('Ride was cancelled by rider');
+      this.stopSimulation();
     });
   }
 
@@ -157,7 +255,7 @@ export class App implements OnInit, OnDestroy {
   updateRideStatus() {
     const ride = this.activeRide();
     if (!ride) return;
-    
+
     // Simple Next Status Logic
     const nextStatusMap: any = {
       [RideStatus.ACCEPTED]: RideStatus.ARRIVED,
@@ -172,7 +270,7 @@ export class App implements OnInit, OnDestroy {
         this.activeRide.set(updatedRide);
 
         if (nextStatus === RideStatus.IN_PROGRESS && !this.simulationInterval) {
-           this.calculateAndStartSimulation(ride);
+          this.calculateAndStartSimulation(ride);
         }
         if (nextStatus === RideStatus.COMPLETED) {
           this.stopSimulation();

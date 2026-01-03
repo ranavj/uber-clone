@@ -1,15 +1,29 @@
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { EventPattern, MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { RidesService } from './rides.service';
 import { JwtService } from '@nestjs/jwt';
+import { RidesGateway } from './rides.gateway';
 
 @Controller()
 export class RidesController {
   constructor(
     private readonly ridesService: RidesService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly ridesGateway: RidesGateway
   ) {}
 
+  @EventPattern('notify.wallet_update') // 👈 EXACT match with Payment Service emit
+  async handleWalletNotify(@Payload() data: { userId: string, newBalance: number }) {
+    console.log('🎯 TCP RECEIVED IN RIDES-CONTROLLER:', data);
+    
+    try {
+      // Gateway ka method call karke socket ke zariye frontend ko bhejein
+      this.ridesGateway.handleWalletNotify(data); 
+      console.log(`✅ Bridge Success: Forwarded to Gateway for User ${data.userId}`);
+    } catch (error) {
+      console.error('❌ Bridge Error:', error.message);
+    }
+  }
   // 🛠️ DEV TOKEN
   @MessagePattern('ride.dev_token')
   getDevToken(@Payload() id: string) {

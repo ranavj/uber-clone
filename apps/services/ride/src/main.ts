@@ -28,7 +28,7 @@ async function bootstrap() {
 
   // 3. Dono Start karein
   await app.startAllMicroservices(); // TCP Start
-  await app.listen(3013);            // HTTP/Socket Start
+  await app.listen(3013);
   
   Logger.log('🚖 Ride Service is listening on HTTP:3003 (Socket) & TCP:3003 (Gateway)');
 }

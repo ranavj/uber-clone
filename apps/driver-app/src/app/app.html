@@ -30,7 +30,7 @@
 
   </div>
 
-  <app-driver-sidebar [isOpen]="isMenuOpen()" (close)="isMenuOpen.set(false)" (logout)="logout()">
+  <app-driver-sidebar [currentBalance]="currentBalance()" [isOpen]="isMenuOpen()" (close)="isMenuOpen.set(false)" (logout)="logout()">
   </app-driver-sidebar>
 
   <div class="absolute bottom-0 left-0 right-0 z-20 p-4 pointer-events-none">

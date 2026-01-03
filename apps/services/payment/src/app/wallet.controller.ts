@@ -8,7 +8,7 @@ export class WalletController {
   constructor(
     private readonly walletService: WalletService,
     private readonly stripeService: StripeService
-  ) {}
+  ) { }
 
   // 1. 🚀 WEBHOOK HANDLER (Gateway se forwarded data)
   @EventPattern('payment.stripe_webhook_received')
@@ -48,7 +48,9 @@ export class WalletController {
 
   @MessagePattern('payment.get_balance')
   async getBalance(@Payload() data: { userId: string }) {
-    return { balance: await this.walletService.getBalance(data.userId) };
+    // Yahan 'userId' variable name hai, par isme Driver ki ID bhi aa sakti hai
+    const balance = await this.walletService.getBalance(data.userId);
+    return { balance };
   }
 
   @MessagePattern('payment.create_intent')
@@ -56,4 +58,6 @@ export class WalletController {
     console.log('💳 Creating Payment Intent for:', data);
     return await this.stripeService.createPaymentIntent(data.amount, data.userId);
   }
+
+
 }

@@ -12,7 +12,7 @@ import { UiSidebar } from '@uber/ui';
 })
 export class DriverSidebar {
   isOpen = input.required<boolean>();
-
+  currentBalance = input<number>(0);
   // ✅ Events Parent ko wapas jayenge
   close = output<void>();
   logout = output<void>();

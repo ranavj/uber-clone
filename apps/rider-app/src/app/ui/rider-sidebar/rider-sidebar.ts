@@ -15,7 +15,7 @@ export class RiderSidebar {
   public auth = inject(Auth);
   // ✅ State from Parent
   isOpen = input.required<boolean>();
-
+  currentBalance = input<number>(0);
   // ✅ Events to Parent
   close = output<void>();
   logout = output<void>();

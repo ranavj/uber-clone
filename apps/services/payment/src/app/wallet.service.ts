@@ -24,60 +24,96 @@ export class WalletService {
   constructor(
     private prisma: PrismaService,
     // 📢 RIDE_SERVICE inject kiya taaki socket notification trigger ho sake
-    @Inject('RIDE_SERVICE') private readonly rideClient: ClientProxy 
-  ) {}
+    @Inject('RIDE_SERVICE') private readonly rideClient: ClientProxy
+  ) { }
 
   /**
    * 🔒 CORE LOGIC: Process Ride Payment
    * (Ismein badlav nahi kiya, yeh atomic transaction hai)
    */
+  // apps/payment-service/src/app/wallet.service.ts
+
   async processRidePayment(rideId: string, riderId: string, driverId: string, amount: number) {
-    return await this.prisma.$transaction(async (tx) => {
-      const riderWallet = await tx.wallet.findUnique({ where: { userId: riderId } });
-      if (!riderWallet) throw new NotFoundException('Rider wallet not found');
-      if (riderWallet.balance < amount) {
-        throw new BadRequestException(`Insufficient balance. Required: ${amount}`);
-      }
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        // Rider Wallet Check/Create
+        let riderWallet = await tx.wallet.findUnique({ where: { userId: riderId } });
+        if (!riderWallet) {
+          riderWallet = await tx.wallet.create({ data: { userId: riderId, balance: 0 } });
+        }
 
-      let driverWallet = await tx.wallet.findUnique({ where: { driverId: driverId } });
-      if (!driverWallet) {
-        driverWallet = await tx.wallet.create({ data: { driverId: driverId, balance: 0 } });
-      }
+        if (riderWallet.balance < amount) {
+          throw new Error(`Insufficient balance. Available: ₹${riderWallet.balance}`);
+        }
 
-      await tx.wallet.update({ where: { id: riderWallet.id }, data: { balance: riderWallet.balance - amount } });
-      await tx.wallet.update({ where: { id: driverWallet.id }, data: { balance: driverWallet.balance + amount } });
+        // Driver Wallet Check/Create
+        let driverWallet = await tx.wallet.findUnique({ where: { driverId: driverId } });
+        if (!driverWallet) {
+          driverWallet = await tx.wallet.create({ data: { driverId: driverId, balance: 0 } });
+        }
 
-      await tx.transaction.create({
-        data: {
-          walletId: riderWallet.id,
-          amount,
-          type: TxType.DEBIT,
-          category: TxCategory.RIDE_PAYMENT,
-          status: TxStatus.SUCCESS,
-          rideId,
-          description: `Paid for ride #${rideId}`,
-        },
+        // Atomic Balance Updates
+        const updatedRider = await tx.wallet.update({
+          where: { id: riderWallet.id },
+          data: { balance: { decrement: amount } }
+        });
+
+        const updatedDriver = await tx.wallet.update({
+          where: { id: driverWallet.id },
+          data: { balance: { increment: amount } }
+        });
+
+        // Transaction Logs
+        await tx.transaction.createMany({
+          data: [
+            { walletId: riderWallet.id, amount, type: 'DEBIT', category: 'RIDE_PAYMENT', status: 'SUCCESS', rideId },
+            { walletId: driverWallet.id, amount, type: 'CREDIT', category: 'RIDE_EARNING', status: 'SUCCESS', rideId }
+          ]
+        });
+
+        return { riderBalance: updatedRider.balance, driverBalance: updatedDriver.balance };
       });
 
-      await tx.transaction.create({
-        data: {
-          walletId: driverWallet.id,
-          amount,
-          type: TxType.CREDIT,
-          category: TxCategory.RIDE_EARNING,
-          status: TxStatus.SUCCESS,
-          rideId,
-          description: `Earnings for ride #${rideId}`,
-        },
+      // 🚀 REAL-TIME NOTIFICATION (Transaction ke bahar)
+      // Rider ko notify karein (userId based room)
+      this.rideClient.emit('notify.wallet_update', {
+        userId: riderId,
+        newBalance: result.riderBalance
+      });
+
+      // Driver ko notify karein (driverId based room)
+      this.rideClient.emit('notify.wallet_update', {
+        userId: driverId,
+        newBalance: result.driverBalance
       });
 
       return { status: 'SUCCESS', message: 'Payment processed' };
-    });
+    } catch (error) {
+      console.error('❌ Payment Failed:', error.message);
+      throw new BadRequestException(error.message);
+    }
   }
 
-  async getBalance(userId: string) {
-    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-    return wallet ? wallet.balance : 0;
+  async getBalance(id: string) {
+    console.log('🔍 Database Lookup for ID:', id);
+
+    // 🎯 FIX: Dono fields check karein (OR condition)
+    const wallet = await this.prisma.wallet.findFirst({
+      where: {
+        OR: [
+          { userId: id },
+          { driverId: id }
+        ]
+      }
+    });
+
+    if (!wallet) {
+      console.warn(`⚠️ No wallet found for ID: ${id}. Returning 0.`);
+      return 0;
+    }
+
+    console.log(`✅ Wallet found for ${wallet.userId ? 'Rider' : 'Driver'}. Balance: ${wallet.balance}`);
+    return wallet.balance;
   }
 
   async createWallet(userId: string) {

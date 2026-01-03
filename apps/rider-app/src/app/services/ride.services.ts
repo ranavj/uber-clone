@@ -72,4 +72,9 @@ export class RideService {
   getCurrentRide() {
     return this.http.get<Ride | null>(`${this.apiUrl}/rides/current-active`);
   }
+
+  processPayment(payload: any) {
+    // Gateway mein humne 'payment/process' jaisa route set kiya hoga
+    return this.http.post(`${this.apiUrl}/payment/process-ride`, payload);
+  }
 }

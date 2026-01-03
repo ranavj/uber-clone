@@ -7,13 +7,13 @@ import {
   MessageBody
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, Inject, forwardRef } from '@nestjs/common';
+import { Logger, Inject, forwardRef, Controller } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RidesService } from './rides.service';
 
 // Shared Constants
 import { SOCKET_EVENTS } from '@uber-clone/interfaces';
-import { Payload } from '@nestjs/microservices';
+import { EventPattern, Payload } from '@nestjs/microservices';
 
 @WebSocketGateway({
   path: '/socket.io', // 👈 Isse explicit add karein
@@ -24,6 +24,7 @@ import { Payload } from '@nestjs/microservices';
   transports: ['polling', 'websocket'],
   allowEIO3: true
 })
+@Controller()
 export class RidesGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @WebSocketServer()
@@ -102,15 +103,26 @@ export class RidesGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.emit(eventName, data);
   }
 
-  @SubscribeMessage('notify.wallet_update')
-  handleWalletNotify(@Payload() data: { userId: string, newBalance: number }) {
-    this.logger.log(`🔔 Socket Triggered for User: ${data.userId}`);
+  async handleWalletNotify(@Payload() data: { userId: string, newBalance: number }) {
+    this.logger.log(`📩 TCP RECEIVED: Wallet update for ${data.userId}`);
 
-    // 1. Global Emit (Testing ke liye - isse toast aa jana chahiye)
-    this.server.emit(SOCKET_EVENTS.WALLET_UPDATE, data);
+    // 🎯 FIX: Check if room actually exists or has users
+    const room = this.server.sockets.adapter.rooms.get(data.userId);
+    if (!room) {
+      this.logger.warn(`⚠️ Room ${data.userId} is empty! Driver not connected?`);
+    }
 
-    // 2. Specific User (Production ke liye - iske liye frontend par room join karna hoga)
-    // this.server.to(`user_${data.userId}`).emit(SOCKET_EVENTS.WALLET_UPDATE, data);
+    this.server.to(data.userId).emit(SOCKET_EVENTS.WALLET_UPDATE, {
+      newBalance: data.newBalance
+    });
+
+    this.logger.log(`✅ Socket Emitted to ${data.userId}: ₹${data.newBalance}`);
+  }
+
+  @SubscribeMessage('join')
+  handleJoin(client: Socket, data: { userId: string, userType: string }) {
+    client.join(data.userId);
+    console.log(`👤 User ${data.userId} joined room as ${data.userType}`);
   }
 
   @SubscribeMessage('ping')

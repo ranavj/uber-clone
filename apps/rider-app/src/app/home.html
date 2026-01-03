@@ -25,7 +25,7 @@
   </div>
   }
 
-  <app-rider-sidebar [isOpen]="isMenuOpen()" (close)="isMenuOpen.set(false)" (logout)="logout()">
+  <app-rider-sidebar [currentBalance]="currentBalance()" [isOpen]="isMenuOpen()" (close)="isMenuOpen.set(false)" (logout)="logout()">
   </app-rider-sidebar>
 
   @if (bookingStage() === 'select-ride' && rideOptions().length > 0) {

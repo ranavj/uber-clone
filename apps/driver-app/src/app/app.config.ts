@@ -21,15 +21,21 @@ export const appConfig: ApplicationConfig = {
     provideRouter(appRoutes),
     provideHttpClient(
       withFetch(),
-      withInterceptors([authInterceptor]) // 👈 YEH LINE ZAROORI HAI
+      withInterceptors([authInterceptor])
     ),
     {
       provide: SOCKET_CONFIG,
-      useValue: { 
-        url: environment.rideApiUrl.replace('/api', ''), // http://localhost:3002
+      useValue: {
+        url: 'http://localhost:3000', // Gateway URL
         options: {
-           // Agar driverId handshake mein bhejna ho toh yahan query add kar sakte hain
-           // query: { type: 'driver' } 
+          transports: ['websocket'],
+          auth: {
+            token: typeof window !== 'undefined' ? localStorage.getItem('uber_token') : null
+          },
+          // 🚀 Zaroori: Isse CORS errors kam aate hain socket level par
+          extraHeaders: {
+            "Access-Control-Allow-Origin": "*"
+          }
         }
       }
     }

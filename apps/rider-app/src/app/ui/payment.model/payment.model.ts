@@ -1,30 +1,32 @@
-import { 
-  Component, 
-  AfterViewInit, 
-  viewChild, 
-  ElementRef, 
-  inject, 
-  signal, 
-  ChangeDetectorRef, 
-  NgZone, 
-  OnDestroy 
+import {
+  Component,
+  AfterViewInit,
+  viewChild,
+  ElementRef,
+  inject,
+  signal,
+  ChangeDetectorRef,
+  NgZone,
+  OnDestroy,
+  PLATFORM_ID // ✅ Added
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
-import { toast } from 'ngx-sonner'; 
+import { toast } from 'ngx-sonner';
 
-import { 
-  loadStripe, 
-  Stripe, 
-  StripeCardNumberElement, 
-  StripeCardExpiryElement, 
-  StripeCardCvcElement 
+import {
+  loadStripe,
+  Stripe,
+  StripeCardNumberElement,
+  StripeCardExpiryElement,
+  StripeCardCvcElement
 } from '@stripe/stripe-js';
 import { environment } from '../../../environments/environment';
 import { PaymentService } from '../../services/payment.service';
 import { SocketService } from '@uber-clone/socket-client';
 import { SOCKET_EVENTS } from '@uber-clone/interfaces';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-payment-modal',
@@ -34,20 +36,21 @@ import { SOCKET_EVENTS } from '@uber-clone/interfaces';
   imports: [CommonModule, FormsModule],
 })
 export class PaymentModalComponent implements AfterViewInit, OnDestroy {
-  // ✅ viewChild for all containers
   private readonly cardNumberContainer = viewChild<ElementRef>('cardNumber');
   private readonly cardExpiryContainer = viewChild<ElementRef>('cardExpiry');
   private readonly cardCvcContainer = viewChild<ElementRef>('cardCvc');
 
   private stripe: Stripe | null = null;
   private cardNumber?: StripeCardNumberElement;
-  private cardExpiry?: StripeCardExpiryElement; // ✅ New
-  private cardCvc?: StripeCardCvcElement;       // ✅ New
+  private cardExpiry?: StripeCardExpiryElement;
+  private cardCvc?: StripeCardCvcElement;
 
   private readonly paymentService = inject(PaymentService);
   private readonly socketService = inject(SocketService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly zone = inject(NgZone);
+  private readonly router = inject(Router);
+  private readonly platformId = inject(PLATFORM_ID); // ✅ FIX: Added Injection
 
   loading = signal(false);
   currentBalance = signal(0);
@@ -70,12 +73,10 @@ export class PaymentModalComponent implements AfterViewInit, OnDestroy {
         }
       };
 
-      // ✅ 1. Create all three elements
       this.cardNumber = elements.create('cardNumber', elementStyles);
       this.cardExpiry = elements.create('cardExpiry', elementStyles);
       this.cardCvc = elements.create('cardCvc', elementStyles);
 
-      // ✅ 2. Mount them properly
       this.zone.runOutsideAngular(() => {
         setTimeout(() => {
           this.zone.run(() => {
@@ -90,12 +91,16 @@ export class PaymentModalComponent implements AfterViewInit, OnDestroy {
       });
     }
 
+    // ✅ Socket Listener: Step 4
     this.socketService.listen(SOCKET_EVENTS.WALLET_UPDATE, (data: any) => {
       this.zone.run(() => {
+        console.log('💰 Socket Event: Wallet Updated', data.newBalance);
         this.currentBalance.set(data.newBalance);
         this.loading.set(false);
-        toast.success(`Wallet Updated: ₹${data.newBalance}`);
         this.cdr.detectChanges();
+        
+        // Agar handlePayment wala toast abhi tak hai, toh ye naya dikhayega
+        toast.success(`Wallet Updated: ₹${data.newBalance}`);
       });
     });
   }
@@ -106,17 +111,22 @@ export class PaymentModalComponent implements AfterViewInit, OnDestroy {
     this.loading.set(true);
     this.cdr.detectChanges();
 
-    // 🎯 Sonner promise handles the UI flow
     toast.promise(this.processPayment(), {
       loading: 'Confirming with Bank...',
       success: () => {
-        // ✅ SUCCESS Case: Loading turant false karein taaki button re-enable ho jaye
         this.loading.set(false);
         this.cdr.detectChanges();
+
+        // 🎯 Step 5: Redirect Failsafe (If Socket is slow or fails)
+        setTimeout(() => {
+          this.zone.run(() => {
+            this.performRedirect();
+          });
+        }, 3000); // 3 seconds buffer
+
         return 'Payment Confirmed! Updating wallet...';
       },
       error: (err: any) => {
-        // ❌ ERROR Case: Loading false karein taaki user retry kar sake
         this.loading.set(false);
         this.cdr.detectChanges();
         return err.message || 'Payment Failed';
@@ -126,28 +136,34 @@ export class PaymentModalComponent implements AfterViewInit, OnDestroy {
 
   private async processPayment() {
     try {
-      // 1. Backend se intent lein
       const res: any = await firstValueFrom(this.paymentService.createIntent(this.selectedAmount()));
-      
-      // 2. Stripe se confirm karein
       const result = await this.stripe!.confirmCardPayment(res.clientSecret, {
         payment_method: { card: this.cardNumber! },
       });
 
       if (result.error) throw new Error(result.error.message);
-      
       return result;
     } catch (error) {
-      // Catch block safety ke liye
       this.loading.set(false);
       this.cdr.detectChanges();
       throw error;
     }
   }
 
+  private performRedirect() {
+    console.log('🚀 Redirecting to Home...');
+    if (isPlatformBrowser(this.platformId)) {
+      this.router.navigate(['/'], { replaceUrl: true }).then((navigated) => {
+        if (!navigated) {
+          window.location.href = '/'; // Nuclear fallback
+        }
+        this.cdr.detectChanges();
+      });
+    }
+  }
+
   ngOnDestroy() {
     this.socketService.disconnect();
-    // ✅ Cleanup elements
     this.cardNumber?.destroy();
     this.cardExpiry?.destroy();
     this.cardCvc?.destroy();

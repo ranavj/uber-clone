@@ -5,6 +5,7 @@ export const SOCKET_EVENTS = {
   // Ride Flow
   NEW_RIDE_AVAILABLE: 'new-ride-available',
   RIDE_ACCEPTED: 'ride-accepted',
+  RIDE_CANCELLED: 'RIDE_CANCELLED',
   
   // Dynamic Events (Function jo ID lekar event name banaye)
   RIDE_STATUS_UPDATE: (rideId: string) => `ride-status-${rideId}`,

@@ -8,7 +8,7 @@ import { toast, NgxSonnerToaster } from 'ngx-sonner';
 @Component({
   standalone: true,
   // ✅ Toaster component ko imports mein shamil kiya
-  imports: [RouterModule, NgxSonnerToaster], 
+  imports: [RouterModule, NgxSonnerToaster],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -20,7 +20,6 @@ export class App implements OnInit, OnDestroy {
 
   ngOnInit() {
     if (isPlatformBrowser(this.platformId)) {
-      
       // 🔴 Jab Net Chala Jaye (Offline)
       this.offlineSub = fromEvent(window, 'offline').subscribe(() => {
         toast.error('You are offline! 🔴', {

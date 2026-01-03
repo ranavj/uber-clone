@@ -11,7 +11,10 @@ async function bootstrap() {
       transport: Transport.TCP,
       options: {
         host: '127.0.0.1', // Sab jagah access ke liye (Docker/Localhost)
-        port: 4001,      // 💰 Payment Service Port (Gateway yahan connect karega)
+        port: 4001,
+        socketOptions: {
+          keepAlive: true,
+        },
       },
     }
   );
